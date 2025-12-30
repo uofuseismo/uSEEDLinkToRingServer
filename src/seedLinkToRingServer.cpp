@@ -168,11 +168,19 @@ public:
                     }
                 }
                 // Propagate
+                auto movePacket = mDataLinkClients.size() == 1 ? true : false; 
                 for (auto &dataLinkClient : mDataLinkClients)
                 {
                     try
                     {
-                        dataLinkClient->enqueue(std::move(packet));
+                        if (movePacket)
+                        {
+                            dataLinkClient->enqueue(std::move(packet));
+                        }
+                        else
+                        {
+                            dataLinkClient->enqueue(packet);
+                        }
                     }
                     catch (const std::exception &e)
                     {
