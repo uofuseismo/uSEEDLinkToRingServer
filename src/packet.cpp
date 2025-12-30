@@ -336,6 +336,37 @@ void Packet::setData(const int nSamples, const U *x)
     setData(std::move(data));
 }
 
+/// Gets a reference to the underlying data
+/*
+const void *Packet::getDataPointer() const noexcept
+{
+    auto dataType = getDataType();
+    if (pImpl->mDataType == Packet::DataType::Integer32)
+    {   
+        return pImpl->mInteger32Data.data();
+    }   
+    else if (dataType == Packet::DataType::Float)
+    {   
+        return pImpl->mFloatData.data();
+    }   
+    else if (dataType == Packet::DataType::Double)
+    {   
+        return pImpl->mDoubleData.data();
+    }   
+    else if (dataType == Packet::DataType::Text)
+    {   
+        return pImpl->mTextData.data();
+    }
+    else
+    {
+#ifndef NDEBUG
+        assert(false);
+#endif
+    }
+    return nullptr;
+}
+*/
+
 /// Gets the data
 template<typename U>
 std::vector<U> Packet::getData() const noexcept
@@ -419,10 +450,12 @@ Packet::DataType Packet::getDataType() const noexcept
     return pImpl->mDataType;
 }
 
-std::vector<USEEDLinkToRingServer::DataLinkPacket> Packet::toDataLinkPackets(
+std::vector<USEEDLinkToRingServer::DataLinkPacket> 
+USEEDLinkToRingServer::toDataLinkPackets(
+    const Packet &packet,
     const int maxRecordLength,
     const bool useMiniSEED3,
-    const Packet::Compression compression) const
+    const Compression compression)
 {
     std::vector<DataLinkPacket> outputPackets;
     MS3Record msRecord MS3Record_INITIALIZER;//{nullptr};
@@ -432,9 +465,10 @@ std::vector<USEEDLinkToRingServer::DataLinkPacket> Packet::toDataLinkPackets(
     {
         msRecord.reclen = maxRecordLength > 0 ? maxRecordLength : 4096;
         msRecord.pubversion = 1;
-        msRecord.starttime = static_cast<int64_t> (getStartTime().count());
-        msRecord.samprate = getSamplingRate();
-        msRecord.numsamples = getNumberOfSamples();
+        msRecord.starttime
+            = static_cast<int64_t> (packet.getStartTime().count());
+        msRecord.samprate = packet.getSamplingRate();
+        msRecord.numsamples = packet.getNumberOfSamples();
     }
     catch (const std::exception &e)
     {
@@ -442,62 +476,64 @@ std::vector<USEEDLinkToRingServer::DataLinkPacket> Packet::toDataLinkPackets(
                                + std::string {e.what()});
     }
     // Pack the sid
+    const auto streamIdentifier = packet.getStreamIdentifierReference();
     std::string locationCode;
-    if (pImpl->mIdentifier.hasLocationCode())
+    if (streamIdentifier.hasLocationCode())
     {
-        locationCode = pImpl->mIdentifier.getLocationCode();
+        locationCode = streamIdentifier.getLocationCode();
     }
     auto sidLength
         = ms_nslc2sid(
             msRecord.sid, LM_SIDLEN, 0,
-            const_cast<char *> (pImpl->mIdentifier.getNetwork().c_str()),
-            const_cast<char *> (pImpl->mIdentifier.getStation().c_str()),
+            const_cast<char *> (streamIdentifier.getNetwork().c_str()),
+            const_cast<char *> (streamIdentifier.getStation().c_str()),
             const_cast<char *> (locationCode.c_str()),
-            const_cast<char *> (pImpl->mIdentifier.getChannel().c_str()));
+            const_cast<char *> (streamIdentifier.getChannel().c_str()));
     if (sidLength < 1)
     {
         throw std::runtime_error("Failed to pack SID");
     }
     // Now do the data
     int encodingInteger{-1};
+    auto dataType = packet.getDataType(); 
     std::vector<double> i64Data;
     if (msRecord.numsamples > 0)
     {
-        if (pImpl->mDataType == DataType::Integer32)
+        if (dataType == Packet::DataType::Integer32)
         {
             msRecord.encoding = DE_INT32;
-            if (compression == Packet::Compression::STEIM1)
+            if (compression == Compression::STEIM1)
             {
                 msRecord.encoding = DE_STEIM1;
             }
-            else if (compression == Packet::Compression::STEIM2)
+            else if (compression == Compression::STEIM2)
             {
                 msRecord.encoding = DE_STEIM2;
             }
             msRecord.sampletype = 'i';
-            msRecord.datasamples
-                = reinterpret_cast<void *> (pImpl->mInteger32Data.data());
+            msRecord.datasamples = (void *) packet.getDataPointer();
+            //    = reinterpret_cast<void *> (pImpl->mInteger32Data.data());
         }
-        else if (pImpl->mDataType == DataType::Float)
+        else if (dataType == Packet::DataType::Float)
         {
             msRecord.encoding = DE_FLOAT32;
             msRecord.sampletype = 'f';
-            msRecord.datasamples
-                = reinterpret_cast<void *> (pImpl->mFloatData.data());
+            msRecord.datasamples = (void *) packet.getDataPointer();
+            //    = reinterpret_cast<void *> (pImpl->mFloatData.data());
         }
-        else if (pImpl->mDataType == DataType::Double)
+        else if (dataType == Packet::DataType::Double)
         {
             msRecord.encoding = DE_FLOAT64;
             msRecord.sampletype = 'd';
-            msRecord.datasamples
-               = reinterpret_cast<void *> (pImpl->mDoubleData.data());
+            msRecord.datasamples = (void *) packet.getDataPointer();
+            //   = reinterpret_cast<void *> (pImpl->mDoubleData.data());
         }
-        else if (pImpl->mDataType == DataType::Text)
+        else if (dataType == Packet::DataType::Text)
         {
             msRecord.encoding = DE_TEXT;
             msRecord.sampletype = 't';
-            msRecord.datasamples
-               = reinterpret_cast<void *> (pImpl->mTextData.data());
+            msRecord.datasamples = (void *) packet.getDataPointer();
+            //   = reinterpret_cast<void *> (pImpl->mTextData.data());
         }
         else
         {
