@@ -407,8 +407,8 @@ std::pair<std::string, bool> parseCommandLineOptions(int argc, char *argv[])
 {
     std::string iniFile;
     boost::program_options::options_description desc(R"""(
-The seedLinkToRingServer scrapes all packets from a SEEDLink import then
-forwards these packets to a RingServer.
+The seedLinkToRingServer scrapes all from a SEEDLink import then forwards
+those packets to RingServer(s) via DataLink.  Example usage:
 
     seedLinkToRingServer --ini=slinkToRing.ini
 
