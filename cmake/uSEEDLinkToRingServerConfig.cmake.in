@@ -1,0 +1,21 @@
+#.rst:
+# FinduSEEDLinkToRingServer
+# ------------
+# 
+# Finds the uSEEDLinkToRingServer library and include directory.
+#
+# Imported targets
+# ^^^^^^^^^^^^^^^^
+#
+# ``uSEEDLinkToRingServer_FOUND``
+#   True indicates uSEEDLinkToRingServer was found.
+# ``uSEEDLinkToRingServer_VERSION_STRING``
+#   The version found.
+# ``uSEEDLinkToRingServer::uSEEDLinkToRingServer``
+#   The uSEEDLinkToRingServer library, if found. 
+include(CMakeFindDependencyMacro)
+
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
+
