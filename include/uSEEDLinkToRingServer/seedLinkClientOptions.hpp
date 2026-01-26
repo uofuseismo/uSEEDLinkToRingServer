@@ -6,11 +6,14 @@
 #include <future>
 namespace USEEDLinkToRingServer
 {
- class Packet;
  class StreamSelector;
 }
 namespace USEEDLinkToRingServer
 {
+/// @class SEEDLinkClientOptions "seedLinkClientOptions.hpp"
+/// @brief Defines the SEEDLink client options.
+/// @copyright Ben Baker (University of Utah) distributed under the
+///            MIT NO AI license.
 class SEEDLinkClientOptions
 {
 public:
