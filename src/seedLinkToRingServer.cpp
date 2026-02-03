@@ -24,8 +24,8 @@
 #include "uSEEDLinkToRingServer/packet.hpp"
 #include "uSEEDLinkToRingServer/streamIdentifier.hpp"
 #include "uSEEDLinkToRingServer/streamSelector.hpp"
-#include "streamMetrics.hpp"
 #include "programOptions.hpp"
+#include "streamMetrics.hpp"
 #include "logger.hpp"
 #include "metricsExporter.hpp"
 
@@ -56,7 +56,7 @@ public:
         if (mOptions.exportMetrics)
         {
              SPDLOG_LOGGER_INFO(mLogger, "Initializing metrics");
-             ::initializeImportMetrics(mOptions.applicationName);
+             ::initializeImportMetrics(mOptions);
         }
 #ifdef USE_TBB
         mImportQueue.set_capacity(mImportQueueMaximumSize);

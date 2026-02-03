@@ -35,6 +35,7 @@ struct ProgramOptions
     //std::string prometheusURL{"localhost:9020"}; 
     std::vector<USEEDLinkToRingServer::DataLinkClientOptions> dataLinkClientOptions;
     USEEDLinkToRingServer::SEEDLinkClientOptions seedLinkClientOptions;
+    std::string dataSource;
     int importQueueSize{8192};
     int verbosity{3};
     bool exportLogs{false};

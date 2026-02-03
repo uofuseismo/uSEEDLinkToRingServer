@@ -15,6 +15,13 @@
 namespace
 {
 
+struct SourceAttribute
+{
+    std::string source;
+};
+
+SourceAttribute mSourceAttribute;
+
 opentelemetry::nostd::shared_ptr<opentelemetry::metrics::ObservableInstrument>
     mPacketsReceivedCounter;
 opentelemetry::nostd::shared_ptr<opentelemetry::metrics::ObservableInstrument>
@@ -128,6 +135,7 @@ void observePacketsReceived(
             >   
         > (observerResult);
         auto keys = mObservablePacketsReceived.keys();
+        auto addSourceAttribute = !mSourceAttribute.source.empty();
         for (const auto &key : keys)
         {
             try
@@ -137,6 +145,11 @@ void observePacketsReceived(
                 {
                     std::map<std::string, std::string>
                        attribute{ {"stream", key} };
+                    if (addSourceAttribute)
+                    {
+                        attribute.insert(
+                            std::pair{"source", mSourceAttribute.source});
+                    }
                     observer->Observe(*value, attribute);
                 }
                 else
@@ -181,6 +194,7 @@ void observeExpiredPacketsReceived(
             >
         > (observerResult);
         auto keys = mObservableExpiredPacketsReceived.keys();
+        auto addSourceAttribute = !mSourceAttribute.source.empty();
         for (const auto &key : keys)
         {
             try 
@@ -190,6 +204,11 @@ void observeExpiredPacketsReceived(
                 {   
                     std::map<std::string, std::string>
                        attribute{ {"stream", key} };
+                    if (addSourceAttribute)
+                    {
+                        attribute.insert(
+                            std::pair{"source", mSourceAttribute.source});
+                    }
                     observer->Observe(*value, attribute);
                 }   
                 else
@@ -234,6 +253,7 @@ void observeFuturePacketsReceived(
             >
         > (observerResult);
         auto keys = mObservableFuturePacketsReceived.keys();
+        auto addSourceAttribute = !mSourceAttribute.source.empty();
         for (const auto &key : keys)
         {
             try
@@ -243,6 +263,11 @@ void observeFuturePacketsReceived(
                 {
                     std::map<std::string, std::string>
                        attribute{ {"stream", key} };
+                    if (addSourceAttribute)
+                    {
+                        attribute.insert(
+                            std::pair{"source", mSourceAttribute.source});
+                    }
                     observer->Observe(*value, attribute);
                 }
                 else
@@ -287,6 +312,7 @@ void observeTotalPacketsReceived(
             >
         > (observerResult);
         auto keys = mObservableTotalPacketsReceived.keys();
+        auto addSourceAttribute = !mSourceAttribute.source.empty();
         for (const auto &key : keys)
         {
             try
@@ -296,6 +322,11 @@ void observeTotalPacketsReceived(
                 {
                     std::map<std::string, std::string>
                         attribute{ {"stream", key} };
+                    if (addSourceAttribute)
+                    {
+                        attribute.insert(
+                            std::pair{"source", mSourceAttribute.source});
+                    }
                     observer->Observe(*value, attribute);
                 }
                 else
@@ -339,10 +370,15 @@ void observeAverageLatency(
                opentelemetry::metrics::ObserverResultT<double>
            >   
         > (observerResult);
+        auto addSourceAttribute = !mSourceAttribute.source.empty();
         for (const auto &item : mObservableAverageLatency)
         {
             std::map<std::string, std::string> attribute;
             attribute.insert(std::pair{"stream", item.first});
+            if (addSourceAttribute)
+            {
+                attribute.insert(std::pair{"source", mSourceAttribute.source});
+            }
             observer->Observe(item.second, attribute);
         }   
     }   
@@ -367,10 +403,15 @@ void observeAverageCounts(
                opentelemetry::metrics::ObserverResultT<double>
            >
         > (observerResult);
+        auto addSourceAttribute = !mSourceAttribute.source.empty();
         for (const auto &item : mObservableAverageCounts)
         {
             std::map<std::string, std::string> attribute;
             attribute.insert(std::pair{"stream", item.first});
+            if (addSourceAttribute)
+            {
+                attribute.insert(std::pair{"source", mSourceAttribute.source});
+            }
             observer->Observe(item.second, attribute);
         }
     }
@@ -394,19 +435,26 @@ void observeStandardDeviationOfAverageCounts(
            <
                opentelemetry::metrics::ObserverResultT<double>
            >
-        > (observerResult); //->Observe(mObservableStandardDeviationOfCounts.load());
+        > (observerResult);
+        auto addSourceAttribute = !mSourceAttribute.source.empty();
         for (const auto &item : mObservableStandardDeviationOfCounts)
         {
-            //std::cout << item.first << " " << item.second << std::endl;
             std::map<std::string, std::string> attribute;
             attribute.insert(std::pair{"stream", item.first});
-            observer->Observe(item.second, attribute);//item.first);
+            if (addSourceAttribute)
+            {
+                attribute.insert(std::pair{"source", mSourceAttribute.source});
+            }
+            observer->Observe(item.second, attribute);
         }
     }
 }
 
-void initializeImportMetrics(const std::string &applicationName)
+void initializeImportMetrics(const ::ProgramOptions &options)
 {
+    mSourceAttribute.source = options.dataSource;
+
+    auto applicationName = options.applicationName;
     // Need a provider from which to get a meter.  This is initialized
     // once and should last the duration of the application.
     auto provider = opentelemetry::metrics::Provider::GetMeterProvider();
