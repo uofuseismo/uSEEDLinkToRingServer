@@ -4,6 +4,7 @@
 #include <chrono>
 #include <memory>
 #include <string>
+#include <spdlog/spdlog.h>
 #include <libmseed.h>
 namespace USEEDLinkToRingServer
 {
@@ -202,7 +203,8 @@ enum class Compression
      toDataLinkPackets(const Packet &packet,
                        int maxRecordLength,
                        bool useMiniSEED3,
-                       Compression compression);
+                       Compression compression,
+                       std::shared_ptr<spdlog::logger> &logger);
 
 }
 #endif

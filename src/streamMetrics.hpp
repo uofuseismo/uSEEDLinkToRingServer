@@ -295,7 +295,7 @@ void observeTotalPacketsReceived(
                 if (value)
                 {
                     std::map<std::string, std::string>
-                       attribute{ {"stream", key} };
+                        attribute{ {"stream", key} };
                     observer->Observe(*value, attribute);
                 }
                 else
@@ -421,63 +421,60 @@ void initializeImportMetrics(const std::string &applicationName)
     // Good packets
     mPacketsReceivedCounter
         = meter->CreateInt64ObservableCounter(
-             "packets_received_counter",
-             "Number of packets received from SEEDLink client",
-             "packets");
+             "seismic_data.import.seedlink.client.packets.valid",
+             "Number of valid data packets received from SEEDLink client.",
+             "{packets}");
     mPacketsReceivedCounter->AddCallback(observePacketsReceived, nullptr);
 
     // Future packets
     mFuturePacketsReceivedCounter
         = meter->CreateInt64ObservableCounter(
-             "future_packets_received_counter",
-             "Number of future packets received from SEEDLink client",
-             "packets");
+             "seismic_data.import.seedlink.client.packets.future",
+             "Number of future packets received from SEEDLink client.",
+             "{packets}");
     mFuturePacketsReceivedCounter->AddCallback(
         observeFuturePacketsReceived, nullptr);
 
     // Expired packets
     mExpiredPacketsReceivedCounter
         = meter->CreateInt64ObservableCounter(
-             "expired_packets_received_counter",
-             "Number of expired packets received from SEEDLink client",
-             "packets");
+             "seismic_data.import.seedlink.client.packets.expired",
+             "Number of expired packets received from SEEDLink client.",
+             "{packets}");
     mExpiredPacketsReceivedCounter->AddCallback(
         observeExpiredPacketsReceived, nullptr);
 
     // Total packets
     mTotalPacketsReceivedCounter
         = meter->CreateInt64ObservableCounter(
-             "total_packets_received_counter",
+             "seismic_data.import.seedlink.client.packets.all",
              "Total number of packets received from SEEDLink client.  This includes future and expired packets.",
-             "packets");
+             "{packets}");
     mTotalPacketsReceivedCounter->AddCallback(
         observeTotalPacketsReceived, nullptr);
 
     // Average latency
-    auto averageLatencyGaugeName = "average_latency_gauge";
     mAverageLatencyGauge
         = meter->CreateDoubleObservableGauge(
-             averageLatencyGaugeName,
-             "Average latency",
-             "seconds");
+             "seismic_data.import.seedlink.client.windowed_average_latency",
+             "Average latency.",
+             "{s}");
     mAverageLatencyGauge->AddCallback(observeAverageLatency, nullptr);
 
     // Average counts of good packets
-    auto averageCountsGaugeName = "average_counts_gauge";
     mAverageCountsGauge
         = meter->CreateDoubleObservableGauge(
-             averageCountsGaugeName,
+             "seismic_data.import.seedlink.client.windowed_average",
              "Average number of counts sampled every minute.",
-             "counts");
+             "{counts}");
     mAverageCountsGauge->AddCallback(observeAverageCounts, nullptr);
 
     // Standard deviation of the average of the good packet counts
-    auto standardDeviationCountsGaugeName = "standard_deviation_counts_gauge";
     mStandardDeviationCountsGauge
         = meter->CreateDoubleObservableGauge(
-             standardDeviationCountsGaugeName,
+             "seismic_data.import.seedlink.client.windowed_standard_deviation",
              "Standard deviation of counts sampled every minute.",
-             "counts");
+             "{counts}");
     mStandardDeviationCountsGauge->AddCallback(
             observeStandardDeviationOfAverageCounts,
             nullptr);
@@ -489,13 +486,15 @@ class StreamMetrics
 {
 public:
     StreamMetrics(const std::string applicationName,
-                  const USEEDLinkToRingServer::Packet &packet) :
-        mApplicationName(applicationName)
+                  const USEEDLinkToRingServer::Packet &packet,
+                  std::shared_ptr<spdlog::logger> logger) :
+        mApplicationName(applicationName),
+        mLogger(logger)
     {
         const auto streamIdentifier
             = packet.getStreamIdentifierReference();
         mName = streamIdentifier.getStringReference();
-        spdlog::info("Making new metrics for " + mName);
+        SPDLOG_LOGGER_INFO(mLogger, "Making new metrics for {}", mName);
         mMetricsKey = streamIdentifier.getNetwork() + "_"
                     + streamIdentifier.getStation() + "_"
                     + streamIdentifier.getChannel();
@@ -614,6 +613,7 @@ public:
         double averageCounts{0};
         double varianceOfCounts{0};
         double averageLatency{0};
+        double besselCorrection{1}; // normalize standard deviation by 1/(n - 1)
         {
         std::lock_guard<std::mutex> lock(mMutex);
         packetsCount = mRunningPacketsCounter;
@@ -622,6 +622,12 @@ public:
         totalPacketsCount = mRunningTotalPacketsCounter;
         if (mRunningSamplesCounter > 0)
         {
+            if (mRunningSamplesCounter > 1) 
+            {
+                besselCorrection
+                    = mRunningSamplesCounter
+                     /static_cast<double> (mRunningSamplesCounter - 1);
+            }
             averageCounts = mRunningSum/mRunningSamplesCounter;
             // Var[x] = E[x^2] - E[x]^2
             varianceOfCounts = mRunningSumSquared/mRunningSamplesCounter
@@ -645,8 +651,8 @@ public:
         mRunningFuturePacketsCounter = 0;
         mRunningTotalPacketsCounter = 0;
         }
-        auto stdOfCounts = std::sqrt(std::max(0.0, varianceOfCounts));
-
+        auto stdOfCounts
+            = besselCorrection*std::sqrt(std::max(0.0, varianceOfCounts));
         mObservablePacketsReceived.add_or_assign(
             mMetricsKey, packetsCount); //[mMetricsKey] = packetsCount;
         mObservableFuturePacketsReceived.add_or_assign(
@@ -659,7 +665,7 @@ public:
         mObservableAverageCounts[mMetricsKey] = averageCounts;
         mObservableStandardDeviationOfCounts[mMetricsKey] = stdOfCounts;
     }
-
+    std::shared_ptr<spdlog::logger> mLogger{nullptr};
     std::mutex mMutex;
     std::string mApplicationName;
     std::string mName;
@@ -681,7 +687,8 @@ public:
 class MetricsMap
 {
 public:
-    void update(const USEEDLinkToRingServer::Packet &packet)
+    void update(const USEEDLinkToRingServer::Packet &packet,
+                std::shared_ptr<spdlog::logger> logger)
     {
         auto identifier
             = packet.getStreamIdentifierReference().getStringReference();
@@ -689,7 +696,8 @@ public:
         if (index == mMetrics.end())
         {
             auto streamMetrics
-                = std::make_unique<::StreamMetrics> (mApplicationName, packet);
+                = std::make_unique<::StreamMetrics>
+                  (mApplicationName, packet, logger);
             mMetrics.insert(std::pair {identifier, std::move(streamMetrics)});
         }
         else

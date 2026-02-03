@@ -7,10 +7,15 @@
 #ifndef NDEBUG
 #include <cassert>
 #endif
-#include <readerwriterqueue.h>
+#ifdef USE_TBB
+#include <oneapi/tbb/concurrent_queue.h>
+#else
+#include <concurrentqueue.h>
+#endif
 #include <libdali.h>
 #include <libmseed.h>
 #include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 #include "uSEEDLinkToRingServer/dataLinkClient.hpp"
 #include "uSEEDLinkToRingServer/dataLinkClientOptions.hpp"
 #include "uSEEDLinkToRingServer/packet.hpp"
@@ -34,15 +39,26 @@ class DataLinkClient::DataLinkClientImpl
 {
 public:
     /// Constructor
-    explicit DataLinkClientImpl(const DataLinkClientOptions &options) :
-        mOptions(options)
+    DataLinkClientImpl(
+        const DataLinkClientOptions &options,
+        std::shared_ptr<spdlog::logger> logger) :
+        mOptions(options),
+        mLogger(logger)
     {
+        if (mLogger == nullptr)
+        {
+            mLogger = spdlog::stdout_color_mt("DataLinkConsole");
+        }
         mWriteMiniSEED3 = mOptions.writeMiniSEED3();
         mMaxMiniSEEDRecordSize = mOptions.getMiniSEEDRecordSize();
         mMaximumInternalQueueSize = mOptions.getMaximumInternalQueueSize();
+#ifdef USE_TBB
+        mQueue.set_capacity(mMaximumInternalQueueSize);
+#else
         mQueue
-            = std::make_unique<moodycamel::ReaderWriterQueue<Packet>>
+            = std::make_unique<moodycamel::ConcurrentQueue<Packet>>
               (mMaximumInternalQueueSize);
+#endif
         connect();
     }
     /// Destructor
@@ -68,7 +84,8 @@ public:
     {
         if (!mDataLinkClient){createClient();}
         disconnect();
-        spdlog::info("Connecting to DataLink server at " + mAddress);
+        SPDLOG_LOGGER_INFO(mLogger, "Connecting to DataLink server at {}",
+                            mAddress);
         if (dl_connect(mDataLinkClient) < 0)
         {
             if (mDataLinkClient)
@@ -79,7 +96,7 @@ public:
             throw std::runtime_error("Failed to connect to DataLink client at "
                                    + mClientName + " at " + mAddress);
         }
-        spdlog::debug("Connected to DataLink server!");
+        SPDLOG_LOGGER_DEBUG(mLogger, "Connected to DataLink server!");
     }
     /// Connected?
     [[nodiscard]] bool isConnected() const noexcept
@@ -95,7 +112,7 @@ public:
     {
         if (isConnected())
         {
-            spdlog::debug("Disconnecting...");
+            SPDLOG_LOGGER_DEBUG(mLogger, "Datalink disconnecting...");
             dl_disconnect(mDataLinkClient);
         }
     }
@@ -129,7 +146,7 @@ public:
 #ifndef NDEBUG
         assert(mDataLinkClient != nullptr);
 #endif
-        spdlog::debug("Thread entering packet writer");
+        SPDLOG_LOGGER_DEBUG(mLogger, "Thread entering packet writer");
         constexpr std::chrono::milliseconds timeOut{15};
         constexpr std::chrono::seconds refreshMetricsInterval{60};
         std::chrono::microseconds lastRefresh{0};
@@ -144,12 +161,13 @@ public:
             // Test my connection and, if necessary, reconnect
             if (!isConnected())
             {
-                spdlog::warn("Currently not connected");
+                SPDLOG_LOGGER_WARN(mLogger, "Currently not connected");
                 for (const auto &waitFor : mReconnectInterval)
                 {
                     auto lockTimeOut = waitFor;
-                    spdlog::info("Will attempt to reconnect in "
-                               + std::to_string(waitFor.count()) + " seconds");
+                    SPDLOG_LOGGER_INFO(mLogger,
+                        "Will attempt to reconnect in {} seconds", 
+                        std::to_string(waitFor.count()));
                     {
                     std::unique_lock<std::mutex>
                         conditionVariableLock(mConditionVariableMutex);
@@ -167,8 +185,9 @@ public:
                     }
                     catch (const std::exception &e)
                     {
-                        spdlog::warn("Failed to connect: "
-                                   + std::string {e.what()});
+                        SPDLOG_LOGGER_WARN(mLogger,
+                                   "Failed to connect because {}",
+                                   std::string {e.what()});
                     }
                 }
                 if (!isConnected())
@@ -181,7 +200,11 @@ public:
             }
             // Presumably we're connected - let's rip
             Packet packet;
+#ifdef USE_TBB
+            if (mQueue.try_pop(packet))
+#else
             if (mQueue->try_dequeue(packet))
+#endif
             {
                 // Make a miniseed packet
                 std::vector<DataLinkPacket> dataLinkPackets;
@@ -191,13 +214,15 @@ public:
                         = toDataLinkPackets(packet,
                                             mMaxMiniSEEDRecordSize,
                                             mWriteMiniSEED3,
-                                            mCompression);
+                                            mCompression,
+                                            mLogger);
                 }
                 catch (const std::exception &e)
                 {
                     MeasurementFetcher::mObservablePacketsWritten.fetch_add(1);
                     MeasurementFetcher::mObservableInvalidPackets.fetch_add(1);
-                    spdlog::warn("Failed to convert packet to mseed"); 
+                    SPDLOG_LOGGER_WARN(mLogger,
+                                       "Failed to convert packet to mseed"); 
                     continue; 
                 }
                 // DataLink stream identifier
@@ -214,8 +239,9 @@ public:
                 {
                     MeasurementFetcher::mObservablePacketsWritten.fetch_add(1);
                     MeasurementFetcher::mObservableInvalidPackets.fetch_add(1);
-                    spdlog::warn("Failed to create stream name "
-                               + std::string {e.what()});
+                    SPDLOG_LOGGER_WARN(mLogger,
+                                   "Failed to create stream name because {}",
+                                    std::string {e.what()});
                     continue;
                 }
                 // Write it
@@ -223,7 +249,7 @@ public:
                 {
                     if (dataLinkPacket.data.empty())
                     {
-                        spdlog::warn("Skipping empty packet");
+                        SPDLOG_LOGGER_WARN(mLogger, "Skipping empty packet");
                         continue;
                     }
                     dltime_t startTime = dataLinkPacket.startTime;
@@ -241,12 +267,12 @@ public:
                     {
                         consecutiveWriteFailures = consecutiveWriteFailures + 1;
                         MeasurementFetcher::mObservablePacketsFailedToWrite.fetch_add(1);
-                        spdlog::warn("DataLink failed to write packet for "
-                                   + streamIdentifier + ".  Failed with " 
-                                   + std::to_string(returnCode));
+                        SPDLOG_LOGGER_WARN(mLogger,
+                      "DataLink failed to write packet for {}.  Failed with {}",
+                            streamIdentifier, returnCode);
                         if (consecutiveWriteFailures >= 32)
                         {
-                            spdlog::warn(
+                            SPDLOG_LOGGER_ERROR(mLogger,
                                "DataLink too many consecutive write failures - killing connection");
                             disconnect();
                         }
@@ -267,30 +293,57 @@ public:
     /// Enqueues the packet
     void enqueue(Packet &&packet)
     {
+#ifdef USE_TBB
+        auto approximateQueueSize = mQueue.size();
+#else
         auto approximateQueueSize = mQueue->size_approx();
+#endif
         if (approximateQueueSize >= mMaximumInternalQueueSize)
         {
-            spdlog::warn("SEEDLink thread popping elements from export queue");
+            SPDLOG_LOGGER_WARN(mLogger,
+                "SEEDLink thread popping elements from export queue");
+#ifdef USE_TBB
+            while (mQueue.size() >= mMaximumInternalQueueSize)
+#else
             while (mQueue->size_approx() >= mMaximumInternalQueueSize)
+#endif
             {
                 MeasurementFetcher::mObservablePacketsFailedToEnqueue.fetch_add(1);
-                mQueue->pop();
+                Packet workSpace;
+#ifdef USE_TBB
+                if (!mQueue.try_pop(workSpace))
+#else
+                if (!mQueue->try_dequeue(workSpace))
+#endif
+                {
+                    SPDLOG_LOGGER_ERROR(mLogger,
+                       "Failed to dequeue packet in overfull queue");
+                }
             }
         }
         // Enqueue 
+#ifdef USE_TBB
+        if (!mQueue.try_push(std::move(packet)))
+#else
         if (!mQueue->try_enqueue(std::move(packet)))
+#endif
         {
             MeasurementFetcher::mObservablePacketsFailedToEnqueue.fetch_add(1);
-            spdlog::warn("Failed to add packet to export queue");
+            SPDLOG_LOGGER_WARN(mLogger,
+               "Failed to add packet to export queue - queue may be full");
         }
     }
 //private:
+    DataLinkClientOptions mOptions;
+    std::shared_ptr<spdlog::logger> mLogger{nullptr};
     std::mutex mConditionVariableMutex;
     std::mutex mMutex;
     std::condition_variable mConditionVariable;
-    DataLinkClientOptions mOptions;
-    std::unique_ptr<moodycamel::ReaderWriterQueue<Packet>> 
-        mQueue{nullptr};
+#ifdef USE_TBB
+    oneapi::tbb::concurrent_bounded_queue<Packet> mQueue;
+#else
+    std::unique_ptr<moodycamel::ConcurrentQueue<Packet>> mQueue{nullptr};
+#endif
     DLCP *mDataLinkClient{nullptr};
     std::string mClientName{"daliClient"};
     std::string mAddress;
@@ -316,8 +369,10 @@ public:
 };
 
 /// Constructor
-DataLinkClient::DataLinkClient(const DataLinkClientOptions &options) :
-    pImpl(std::make_unique<DataLinkClientImpl> (options))
+DataLinkClient::DataLinkClient(
+    const DataLinkClientOptions &options,
+    std::shared_ptr<spdlog::logger> logger) :
+    pImpl(std::make_unique<DataLinkClientImpl> (options, logger))
 {
 }
 

@@ -3,6 +3,7 @@ project(uSEEDLinkToRingServer VERSION 0.0.1 LANGUAGES C CXX)
 enable_testing()
 
 option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
+option(USE_TBB "Build using Thread Building Blocks" OFF)
 
 include(GenerateExportHeader)
 include(FetchContent)
@@ -10,13 +11,24 @@ include(FetchContent)
 configure_file(${CMAKE_SOURCE_DIR}/src/version.hpp.in
                ${CMAKE_SOURCE_DIR}/include/uSEEDLinkToRingServer/version.hpp)
 
-FetchContent_Declare(
-  readerwriterqueue
-  GIT_REPOSITORY    https://github.com/cameron314/readerwriterqueue
-  GIT_TAG           3f4f80f4efb840a4483f1b80869d61811f9e8398 
-  EXCLUDE_FROM_ALL
-)
-FetchContent_MakeAvailable(readerwriterqueue)
+if (NOT ${USE_TBB}) 
+   message("Will use moodycamel concurrentqueue")
+   FetchContent_Declare(
+     concurrentqueue
+     GIT_REPOSITORY    https://github.com/cameron314/concurrentqueue
+     GIT_TAG           c68072129c8a5b4025122ca5a0c82ab14b30cb03
+     EXCLUDE_FROM_ALL
+   )
+   FetchContent_MakeAvailable(concurrentqueue)
+endif()
+
+#FetchContent_Declare(
+#  readerwriterqueue
+#  GIT_REPOSITORY    https://github.com/cameron314/readerwriterqueue
+#  GIT_TAG           3f4f80f4efb840a4483f1b80869d61811f9e8398 
+#  EXCLUDE_FROM_ALL
+#)
+#FetchContent_MakeAvailable(readerwriterqueue)
 if(POLICY CMP0167)
   cmake_policy(SET CMP0167 NEW)
 endif()
@@ -32,6 +44,10 @@ find_package(libmseed REQUIRED)
 find_package(SEEDLink REQUIRED)
 find_package(DataLink REQUIRED)
 find_package(opentelemetry-cpp REQUIRED)
+if (${USE_TBB})
+   message("Will compile with TBB")
+   find_package(TBB COMPONENTS tbb REQUIRED)
+endif()
 find_package(Boost COMPONENTS program_options REQUIRED)
 find_package(Catch2)
 find_package(Threads REQUIRED)
@@ -44,6 +60,7 @@ set(LIBRARY_SRC
     src/seedLinkClientOptions.cpp
     src/streamIdentifier.cpp
     src/streamSelector.cpp
+    src/otelSpdlogSink.cpp
     src/version.cpp)
 if (BUILD_SHARED_LIBS)
    add_library(libuSEEDLinkToRingServer SHARED ${LIBRARY_SRC})
@@ -55,6 +72,9 @@ set_target_properties(libuSEEDLinkToRingServer PROPERTIES
                       CXX_STANDARD_REQUIRED YES 
                       CXX_EXTENSIONS NO 
                       OUTPUT_NAME uSEEDLinkToRingServer)
+if (${USE_TBB})
+   target_compile_definitions(libuSEEDLinkToRingServer PRIVATE USE_TBB)
+endif()
 target_sources(libuSEEDLinkToRingServer
                PUBLIC
                FILE_SET HEADERS
@@ -70,11 +90,17 @@ target_sources(libuSEEDLinkToRingServer
                   include/uSEEDLinkToRingServer/streamSelector.hpp
                   include/uSEEDLinkToRingServer/version.hpp)
 target_link_libraries(libuSEEDLinkToRingServer
-                      PRIVATE readerwriterqueue
-                              opentelemetry-cpp::prometheus_exporter
+                      PRIVATE opentelemetry-cpp::prometheus_exporter
                               mseed::mseed_static
+                              spdlog::spdlog_header_only
                               SEEDLink::SEEDLink DataLink::DataLink
-                              Boost::boost Threads::Threads)
+                              Boost::boost
+                              Threads::Threads)
+if (${USE_TBB})
+   target_link_libraries(libuSEEDLinkToRingServer PRIVATE TBB::tbb)
+else()
+   target_link_libraries(libuSEEDLinkToRingServer PRIVATE concurrentqueue)
+endif() 
 target_include_directories(libuSEEDLinkToRingServer
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/src>
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
@@ -90,16 +116,27 @@ set_target_properties(seedLinkToRingServer PROPERTIES
                       CXX_STANDARD 23
                       CXX_STANDARD_REQUIRED YES
                       CXX_EXTENSIONS NO)
+if (${USE_TBB})
+   target_compile_definitions(seedLinkToRingServer PRIVATE USE_TBB)
+endif()
 target_include_directories(seedLinkToRingServer
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
                                    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>)
 target_link_libraries(seedLinkToRingServer
                       PRIVATE uSEEDLinkToRingServer::libuSEEDLinkToRingServer
-                              readerwriterqueue
                               opentelemetry-cpp::prometheus_exporter
+                              opentelemetry-cpp::otlp_http_log_record_exporter
+                              opentelemetry-cpp::otlp_http_metric_exporter
+                              spdlog::spdlog_header_only
                               mseed::mseed_static
                               Threads::Threads
-                              Boost::boost Boost::program_options)
+                              Boost::boost
+                              Boost::program_options)
+if (${USE_TBB})
+   target_link_libraries(seedLinkToRingServer PRIVATE TBB::tbb)
+else()
+   target_link_libraries(seedLinkToRingServer PRIVATE concurrentqueue)
+endif()
 
 ##########################################################################################
 #                                         Tests                                          #
@@ -116,6 +153,7 @@ if (${Catch2_FOUND})
                          CXX_EXTENSIONS NO)
    target_link_libraries(unitTests 
                          PRIVATE uSEEDLinkToRingServer::libuSEEDLinkToRingServer
+                                 spdlog::spdlog_header_only
                                  Threads::Threads
                                  mseed::mseed_static
                                  Catch2::Catch2 Catch2::Catch2WithMain)

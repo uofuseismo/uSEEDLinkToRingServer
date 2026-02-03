@@ -455,7 +455,8 @@ USEEDLinkToRingServer::toDataLinkPackets(
     const Packet &packet,
     const int maxRecordLength,
     const bool useMiniSEED3,
-    const Compression compression)
+    const Compression compression,
+    std::shared_ptr<spdlog::logger> &logger)
 {
     std::vector<DataLinkPacket> outputPackets;
     MS3Record msRecord MS3Record_INITIALIZER;//{nullptr};
@@ -561,11 +562,12 @@ USEEDLinkToRingServer::toDataLinkPackets(
     }
     if (nRecordsCreated != static_cast<int> (outputPackets.size()))
     {
-        spdlog::warn("Inconsistent records created/output packets created");
+        SPDLOG_LOGGER_WARN(logger,
+            "Inconsistent records created/output packets created");
     }
     if (msRecord.numsamples > 0 && packedSamplesCount < msRecord.numsamples)
     { 
-        spdlog::warn("Its possible not all samples were packed");
+        SPDLOG_LOGGER_WARN(logger, "Its possible not all samples were packed");
     }
     return outputPackets;
 }

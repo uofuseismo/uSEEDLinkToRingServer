@@ -4,6 +4,7 @@
 #include <functional>
 #include <filesystem>
 #include <future>
+#include <spdlog/spdlog.h>
 namespace USEEDLinkToRingServer
 {
  class Packet;
@@ -28,7 +29,8 @@ public:
     /// @param[in] options  Options that influence the behavior of the SEEDLink
     ///                     client.
     SEEDLinkClient(const std::function<void (Packet &&)> &getPacketCallback,
-                   const SEEDLinkClientOptions &options);
+                   const SEEDLinkClientOptions &options,
+                   std::shared_ptr<spdlog::logger> logger);
     
     /// @result True indicates the client is initialized.
     [[nodiscard]] bool isInitialized() const noexcept;

@@ -7,6 +7,7 @@
 #include <string>
 #include <chrono>
 #include <limits>
+#include <spdlog/sinks/stdout_color_sinks.h>
 #include "uSEEDLinkToRingServer/packet.hpp"
 #include "uSEEDLinkToRingServer/streamIdentifier.hpp"
 #include <catch2/catch_test_macros.hpp>
@@ -73,6 +74,8 @@ TEST_CASE("USEEDLinkToRingServer::Packet", "[packet]")
     const std::string locationCode{"01"};
     const double samplingRate{100};
     const std::chrono::nanoseconds startTime{1759952887000000000};
+    std::shared_ptr<spdlog::logger> logger{nullptr}; //auto logger = spdlog::stdout_color_mt("PacketTesterConsole");
+
     StreamIdentifier identifier;
 
     REQUIRE_NOTHROW(identifier.setNetwork(network));
@@ -115,7 +118,7 @@ TEST_CASE("USEEDLinkToRingServer::Packet", "[packet]")
         std::vector<DataLinkPacket> dlPackets;
         constexpr USEEDLinkToRingServer::Compression
             compression{USEEDLinkToRingServer::Compression::None};
-        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression));
+        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, logger));
         REQUIRE(std::abs(computeSumOfSamples(packet) - 2) < 1.e-14);
         REQUIRE(std::abs(computeSumOfSamplesSquared(packet) - 30) < 1.e-14);
     }
@@ -137,7 +140,7 @@ TEST_CASE("USEEDLinkToRingServer::Packet", "[packet]")
         std::vector<DataLinkPacket> dlPackets;
         constexpr USEEDLinkToRingServer::Compression
             compression{USEEDLinkToRingServer::Compression::None};
-        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression));
+        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, logger));
         REQUIRE(std::abs(computeSumOfSamples(packet) - 2) < 1.e-14);
         REQUIRE(std::abs(computeSumOfSamplesSquared(packet) - 30) < 1.e-14);
     }
@@ -159,7 +162,7 @@ TEST_CASE("USEEDLinkToRingServer::Packet", "[packet]")
         std::vector<DataLinkPacket> dlPackets;
         constexpr USEEDLinkToRingServer::Compression
             compression{USEEDLinkToRingServer::Compression::None};
-        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression));
+        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, logger));
         REQUIRE(std::abs(computeSumOfSamples(packet) - 2) < 1.e-14);
         REQUIRE(std::abs(computeSumOfSamplesSquared(packet) - 30) < 1.e-14);
     }
@@ -181,7 +184,7 @@ TEST_CASE("USEEDLinkToRingServer::Packet", "[packet]")
         std::vector<DataLinkPacket> dlPackets;
         constexpr USEEDLinkToRingServer::Compression
             compression{USEEDLinkToRingServer::Compression::None};
-        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression));
+        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, logger));
     }   
 
     SECTION("Big Record")
@@ -192,6 +195,6 @@ TEST_CASE("USEEDLinkToRingServer::Packet", "[packet]")
         std::vector<DataLinkPacket> dlPackets;
         constexpr USEEDLinkToRingServer::Compression
             compression{USEEDLinkToRingServer::Compression::None};
-        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression));
+        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, logger));
     }
 }

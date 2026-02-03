@@ -7,11 +7,16 @@
 #include <filesystem>
 #include <functional>
 #include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
-#include <readerwriterqueue.h>
+#ifdef USE_TBB
+#include <oneapi/tbb/concurrent_queue.h>
+#else
+#include <concurrentqueue.h>
+#endif
 #include "uSEEDLinkToRingServer/dataLinkClient.hpp"
 #include "uSEEDLinkToRingServer/dataLinkClientOptions.hpp"
 #include "uSEEDLinkToRingServer/seedLinkClient.hpp"
@@ -20,9 +25,10 @@
 #include "uSEEDLinkToRingServer/streamIdentifier.hpp"
 #include "uSEEDLinkToRingServer/streamSelector.hpp"
 #include "streamMetrics.hpp"
+#include "programOptions.hpp"
+#include "logger.hpp"
 #include "metricsExporter.hpp"
 
-#define APPLICATION_NAME "seedLinkToRingServer"
 
 std::atomic<bool> mInterrupted{false};
 
@@ -30,45 +36,50 @@ std::atomic<bool> mInterrupted{false};
 namespace 
 {
 
-struct ProgramOptions
-{
-    std::string applicationName{APPLICATION_NAME};
-    std::string prometheusURL{"localhost:9020"}; 
-    std::vector<USEEDLinkToRingServer::DataLinkClientOptions> dataLinkClientOptions;
-    USEEDLinkToRingServer::SEEDLinkClientOptions seedLinkClientOptions;
-    int importQueueSize{8192};
-    int verbosity{3};
-    bool tabulateMetrics{true};
-};
-
-void setVerbosityForSPDLOG(int verbosity);
+void setVerbosityForSPDLOG(int, spdlog::logger *logger);
 std::pair<std::string, bool> parseCommandLineOptions(int argc, char *argv[]);
-::ProgramOptions parseIniFile(const std::filesystem::path &iniFile);
 
 
 class Process
 {
 public:
-    explicit Process(const ::ProgramOptions &options) :
-        mOptions(options)
+    explicit Process(const ::ProgramOptions &options,
+                     std::shared_ptr<spdlog::logger> logger) :
+        mOptions(options),
+        mLogger(logger)
     {
+        if (mLogger == nullptr)
+        {
+            mLogger = spdlog::stdout_color_mt("ProcessConsole");
+        }
         mImportQueueMaximumSize = options.importQueueSize;
+        if (mOptions.exportMetrics)
+        {
+             SPDLOG_LOGGER_INFO(mLogger, "Initializing metrics");
+             ::initializeImportMetrics(mOptions.applicationName);
+        }
+#ifdef USE_TBB
+        mImportQueue.set_capacity(mImportQueueMaximumSize);
+#else
         mImportQueue
             = std::make_unique
               <
-                  moodycamel::ReaderWriterQueue<USEEDLinkToRingServer::Packet>
+                  moodycamel::ConcurrentQueue<USEEDLinkToRingServer::Packet>
               >
               (mImportQueueMaximumSize);
+#endif
         for (auto &dataLinkClientOptions : mOptions.dataLinkClientOptions)
         {
             auto dataLinkClient
                 = std::make_unique<USEEDLinkToRingServer::DataLinkClient>
-                  (dataLinkClientOptions);
+                  (dataLinkClientOptions, mLogger);
             mDataLinkClients.push_back(std::move(dataLinkClient));
         }
         mSEEDLinkClient
             = std::make_unique<USEEDLinkToRingServer::SEEDLinkClient>
-              (mAddPacketCallbackFunction, mOptions.seedLinkClientOptions);
+              (mAddPacketCallbackFunction,
+               mOptions.seedLinkClientOptions,
+               mLogger);
 
     }
     /// Destructor
@@ -110,25 +121,58 @@ public:
     {
         try
         {
+#ifdef USE_TBB
+            auto approximateQueueSize = mImportQueue.size();
+#else
             auto approximateQueueSize = mImportQueue->size_approx();
+#endif
             if (approximateQueueSize >= mImportQueueMaximumSize)
             {
-                spdlog::warn("Popping elements from import queue");
+                SPDLOG_LOGGER_WARN(mLogger,
+                                   "Popping elements from import queue");
+#ifdef USE_TBB
+                while (mImportQueue.size() >= mImportQueueMaximumSize)
+#else
                 while (mImportQueue->size_approx() >= mImportQueueMaximumSize)
+#endif
                 {
                      mImportPacketsPopped.fetch_add(1);
-                     mImportQueue->pop();
+                     USEEDLinkToRingServer::Packet workSpace;
+#ifdef USE_TBB
+                     if (!mImportQueue.try_pop(workSpace))
+#else
+                     if (!mImportQueue->try_dequeue(workSpace))
+#endif
+                     {
+                         SPDLOG_LOGGER_WARN(mLogger,
+                             "Failed to pop element from import queue");
+                         break;
+                     }
                 }   
             }
+#ifdef USE_TBB
+            if (!mImportQueue.try_push(std::move(packet)))
+#else
+            if (!mImportQueue->try_enqueue(std::move(packet)))
+#endif
+            {
+                mImportPacketsFailedToEnqueue.fetch_add(1);
+                SPDLOG_LOGGER_WARN(mLogger,
+                    "Failed to add packet to import queue");
+            }
+/*
             if (!mImportQueue->try_enqueue(std::move(packet)))
             {
                 mImportPacketsFailedToEnqueue.fetch_add(1);
-                spdlog::warn("Failed to add packet to import queue");
+                SPDLOG_LOGGER_WARN(mLogger,
+                   "Failed to add packet to import queue");
             }
+*/
         }
         catch (const std::exception &e)
         {
-            spdlog::warn("Failed to add packet to metrics queue");
+            SPDLOG_LOGGER_WARN(mLogger,
+                "Failed to add packet to metrics queue");
         }
     }
     /// This function tabulates the metrics on the incoming packets
@@ -146,25 +190,30 @@ public:
             // channel will blink out so it doesn't make sense to do this
             // in the update function.  Note, the class handles the timing
             // so this is safe to repeatedly run.
-            if (mOptions.tabulateMetrics)
+            if (mOptions.exportMetrics)
             {
                 metricsMap.tabulateAndResetAllMetrics();
             }
             // Update the metrics and propagate the packet
             USEEDLinkToRingServer::Packet packet;
+#ifdef USE_TBB
+            if (mImportQueue.try_pop(packet))
+#else
             if (mImportQueue->try_dequeue(packet))
+#endif
             {
                 // Update metrics
-                if (mOptions.tabulateMetrics)
+                if (mOptions.exportMetrics)
                 {
                     try
                     {
-                        metricsMap.update(packet);
+                        metricsMap.update(packet, mLogger);
                     }
                     catch (const std::exception &e)
                     {
-                        spdlog::warn("Failed to update metrics for packet because "
-                                   + std::string {e.what()});
+                        SPDLOG_LOGGER_WARN(mLogger,
+                            "Failed to update metrics for packet because {}",
+                            std::string {e.what()});
                     }
                 }
                 // Propagate
@@ -184,9 +233,9 @@ public:
                     }
                     catch (const std::exception &e)
                     {
-                        spdlog::warn(
-                            "Failed to enqueue packet for publishing because "
-                           + std::string {e.what()});
+                        SPDLOG_LOGGER_WARN(mLogger,
+                           "Failed to enqueue packet for publishing because {}",
+                           std::string {e.what()});
                     }
                 }
             }
@@ -210,8 +259,9 @@ public:
         }
         catch (const std::exception &e)
         {
-            spdlog::critical("Fatal error in SEEDLink import: "
-                           + std::string {e.what()});
+            SPDLOG_LOGGER_CRITICAL(mLogger,
+                                   "Fatal error in SEEDLink import: {}",
+                                   std::string {e.what()});
             isOkay = false;
         }
         try
@@ -227,28 +277,30 @@ public:
         }
         catch (const std::exception &e)
         {
-            spdlog::critical("Fatal error in DataLink export: "
-                           + std::string {e.what()});
+            SPDLOG_LOGGER_CRITICAL(mLogger, 
+                                   "Fatal error in DataLink export: {}",
+                                   std::string {e.what()});
             isOkay = false;
         }
         return isOkay;
     }
     void handleMainThread()
     {
-        spdlog::debug("Main thread entering waiting loop");
+        SPDLOG_LOGGER_DEBUG(mLogger, "Main thread entering waiting loop");
         catchSignals();
         {
             while (!mStopRequested)
             {
                 if (mInterrupted)
                 {
-                    spdlog::info("SIGINT/SIGTERM signal received!");
+                    SPDLOG_LOGGER_INFO(mLogger,
+                                       "SIGINT/SIGTERM signal received!");
                     mStopRequested = true;
                     break;
                 }
                 if (!checkFuturesOkay(std::chrono::milliseconds {5}))
                 {
-                    spdlog::critical(
+                    SPDLOG_LOGGER_CRITICAL(mLogger,
                        "Futures exception caught; terminating app");
                     mStopRequested = true;
                     break;
@@ -265,7 +317,7 @@ public:
         }
         if (mStopRequested)
         {
-            spdlog::debug("Stop request received.  Exiting...");
+            SPDLOG_LOGGER_DEBUG(mLogger, "Stop request received.  Exiting...");
             stop(); 
         }
     }
@@ -284,14 +336,22 @@ public:
         sigaction(SIGTERM, &action, NULL);
     }   
 //private:
+    ::ProgramOptions mOptions;
+    std::shared_ptr<spdlog::logger> mLogger{nullptr};    
     mutable std::future<void> mSEEDLinkClientFuture;
     mutable std::vector<std::future<void>> mDataLinkClientFutures;
     mutable std::mutex mStopMutex;
-    std::unique_ptr<moodycamel::ReaderWriterQueue<USEEDLinkToRingServer::Packet>>
+#ifdef USE_TBB
+    oneapi::tbb::concurrent_bounded_queue
+    <
+          USEEDLinkToRingServer::Packet
+    > mImportQueue;
+#else
+    std::unique_ptr<moodycamel::ConcurrentQueue<USEEDLinkToRingServer::Packet>>
         mImportQueue{nullptr};
+#endif
     std::thread mMetricsThread;
     std::condition_variable mStopCondition;
-    ::ProgramOptions mOptions;
     std::vector<std::unique_ptr<USEEDLinkToRingServer::DataLinkClient>>
         mDataLinkClients;
     std::unique_ptr<USEEDLinkToRingServer::SEEDLinkClient> mSEEDLinkClient{nullptr};
@@ -336,25 +396,33 @@ int main(int argc, char *argv[])
     }
     catch (const std::exception &e)
     {
-        spdlog::error(e.what());
+        spdlog::critical(e.what());
         return EXIT_FAILURE;
     }
-    ::setVerbosityForSPDLOG(programOptions.verbosity);
+    constexpr int overwrite{1};
+    setenv("OTEL_SERVICE_NAME",
+           programOptions.applicationName.c_str(),
+           overwrite);
+
+    auto logger = ::initializeLogger(programOptions);
+    ::setVerbosityForSPDLOG(programOptions.verbosity, &*logger);
 
     // Setup metrics
     try
     {
-        if (programOptions.tabulateMetrics)
+        if (programOptions.exportMetrics)
         {
-            spdlog::info("Configuring OpenTelmetry metrics provider");
-            initializeMetrics(programOptions.prometheusURL);
-            initializeImportMetrics(programOptions.applicationName);
+            SPDLOG_LOGGER_INFO(logger,
+                               "Configuring OpenTelmetry metrics provider");
+            ::initializeMetrics(programOptions);
         }
     }   
     catch (const std::exception &e) 
     {
-        spdlog::critical("Failed to initialize metrics because "
-                       + std::string {e.what()});
+        SPDLOG_LOGGER_CRITICAL(logger,
+            "Failed to initialize metrics because {}",
+            std::string {e.what()});
+        if (programOptions.exportLogs){::cleanupLogger();}
         return EXIT_FAILURE;
     }
 
@@ -362,28 +430,33 @@ int main(int argc, char *argv[])
     std::unique_ptr<::Process> process;
     try
     {
-        process = std::make_unique<::Process> (programOptions);
+        process = std::make_unique<::Process> (programOptions, logger);
     } 
     catch (const std::exception &e)
     {
         spdlog::critical(e.what());
+        if (programOptions.exportMetrics){::cleanupMetrics();}
+        if (programOptions.exportLogs){::cleanupLogger();}
         return EXIT_FAILURE;
     }
 
     try
     {
-        spdlog::info("Starting seedLinkToRing processess...");
+        SPDLOG_LOGGER_INFO(logger,
+                           "Starting seedLinkToRingServer processes...");
         process->start();
         process->handleMainThread();
+        if (programOptions.exportMetrics){::cleanupMetrics();}
+        if (programOptions.exportLogs){::cleanupLogger();}
     }
     catch (const std::exception &e)
     {
-        spdlog::critical(e.what());
+        SPDLOG_LOGGER_CRITICAL(logger,
+            "seedLinkToRingServer processes failed with {}",
+            std::string {e.what()});
+        if (programOptions.exportMetrics){::cleanupMetrics();}
+        if (programOptions.exportLogs){::cleanupLogger();}
         return EXIT_FAILURE;
-    }
-    if (programOptions.tabulateMetrics)
-    {
-        cleanupMetrics();
     }
     return EXIT_SUCCESS;
 }
@@ -391,15 +464,19 @@ int main(int argc, char *argv[])
 namespace
 {
 
-void setVerbosityForSPDLOG(const int verbosity)
+void setVerbosityForSPDLOG(const int verbosity,
+                           spdlog::logger *logger)
 {
+#ifndef NDEBUG
+    assert(logger != nullptr);
+#endif
     if (verbosity <= 1)
     {
-        spdlog::set_level(spdlog::level::critical);
-    }
-    if (verbosity == 2){spdlog::set_level(spdlog::level::warn);}
-    if (verbosity == 3){spdlog::set_level(spdlog::level::info);}
-    if (verbosity >= 4){spdlog::set_level(spdlog::level::debug);}
+        logger->set_level(spdlog::level::critical);
+    }   
+    if (verbosity == 2){logger->set_level(spdlog::level::warn);}
+    if (verbosity == 3){logger->set_level(spdlog::level::info);}
+    if (verbosity >= 4){logger->set_level(spdlog::level::debug);}
 }   
 
 /// Read the program options from the command line
@@ -599,6 +676,23 @@ getSEEDLinkOptions(const boost::property_tree::ptree &propertyTree,
     return clientOptions;
 }
 
+std::string getOTelCollectorURL(boost::property_tree::ptree &propertyTree,
+                                const std::string &section)
+{
+    std::string result;
+    std::string otelCollectorHost 
+        = propertyTree.get<std::string> (section + ".host", "");
+    uint16_t otelCollectorPort
+        = propertyTree.get<uint16_t> (section + ".port", 4218);
+    if (!otelCollectorHost.empty())
+    {   
+        result = otelCollectorHost + ":" 
+               + std::to_string(otelCollectorPort);
+    }   
+    return result; 
+}
+
+
 ::ProgramOptions parseIniFile(const std::filesystem::path &iniFile)
 {
     ::ProgramOptions options;
@@ -618,6 +712,54 @@ getSEEDLinkOptions(const boost::property_tree::ptree &propertyTree,
     options.verbosity
         = propertyTree.get<int> ("General.verbosity", options.verbosity);
 
+    // Metrics
+    OTelHTTPMetricsOptions metricsOptions;
+    metricsOptions.url
+         = ::getOTelCollectorURL(propertyTree, "OTelHTTPMetricsOptions");
+    metricsOptions.suffix
+         = propertyTree.get<std::string> ("OTelHTTPMetricsOptions.suffix",
+                                          "/v1/metrics");
+    if (!metricsOptions.url.empty())
+    {
+        if (!metricsOptions.suffix.empty())
+        {
+            if (!metricsOptions.url.ends_with("/") &&
+                !metricsOptions.suffix.starts_with("/"))
+            {
+                metricsOptions.suffix = "/" + metricsOptions.suffix;
+            }
+         }
+    }
+    if (!metricsOptions.url.empty())
+    {
+        options.exportMetrics = true;
+        options.otelHTTPMetricsOptions = metricsOptions;
+    }
+
+    OTelHTTPLogOptions logOptions;
+    logOptions.url
+         = ::getOTelCollectorURL(propertyTree, "OTelHTTPLogOptions");
+    logOptions.suffix
+         = propertyTree.get<std::string>
+           ("OTelHTTPLogOptions.suffix", "/v1/logs");
+    if (!logOptions.url.empty())
+    {
+        if (!logOptions.suffix.empty())
+        {
+            if (!logOptions.url.ends_with("/") &&
+                !logOptions.suffix.starts_with("/"))
+            {
+                logOptions.suffix = "/" + logOptions.suffix;
+            }
+        }
+    }
+    if (!logOptions.url.empty())
+    {
+        options.exportLogs = true;
+        options.otelHTTPLogOptions = logOptions;
+    }
+
+/*
     // Prometheus
     uint16_t prometheusPort
         = propertyTree.get<uint16_t> ("Prometheus.port", 9200);
@@ -628,7 +770,7 @@ getSEEDLinkOptions(const boost::property_tree::ptree &propertyTree,
         options.prometheusURL = prometheusHost + ":"
                               + std::to_string(prometheusPort);
     }
-
+*/
     // DataLink
     std::vector<USEEDLinkToRingServer::DataLinkClientOptions>
         dataLinkClientOptions;

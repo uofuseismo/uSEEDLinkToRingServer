@@ -2,6 +2,7 @@
 #define USEED_LINK_TO_RING_SERVER_DATA_LINK_CLIENT_HPP
 #include <memory>
 #include <future>
+#include <spdlog/spdlog.h>
 namespace USEEDLinkToRingServer
 {
  class Packet;
@@ -17,7 +18,8 @@ namespace USEEDLinkToRingServer
 class DataLinkClient
 {
 public:
-    explicit DataLinkClient(const DataLinkClientOptions &options);
+    DataLinkClient(const DataLinkClientOptions &options,
+                   std::shared_ptr<spdlog::logger> logger);
 
     /// @brief Starts the publisher thread. 
     [[nodiscard]] std::future<void> start();
