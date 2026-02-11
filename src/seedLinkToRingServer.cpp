@@ -655,7 +655,7 @@ getSEEDLinkOptions(const boost::property_tree::ptree &propertyTree,
                 // Data type
                 auto dataType
                     = USEEDLinkToRingServer::StreamSelector::Type::All;
-                if (splitSelector.size() > 4)
+                if (thisSelector.size() > 4)
                 {
                     boost::algorithm::trim(thisSelector.at(4));
                     if (thisSelector.at(4) == "D")
