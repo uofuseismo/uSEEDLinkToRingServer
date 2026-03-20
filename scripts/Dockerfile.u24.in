@@ -18,12 +18,12 @@ RUN apt-get update &&\
     apt-get clean &&\
     tar -xf ./@PROJECT_NAME@-@PROJECT_VERSION@-Linux.tar.gz &&\
     mv ./@PROJECT_NAME@-@PROJECT_VERSION@-Linux/bin/uSEEDLinkToRingServer /usr/local/bin &&\
-    mv ./@PROJECT_NAME@-@PROJECT_VERSION@-Linux/lib/lib* /usr/local/lib &&\
+    mv ./@PROJECT_NAME@-@PROJECT_VERSION@-Linux/lib/libuSEED* /usr/local/lib &&\
     rm -r ./@PROJECT_NAME@-@PROJECT_VERSION@-Linux/ &&\
     rm -r /var/lib/apt/lists/* ./@PROJECT_NAME@-@PROJECT_VERSION@-Linux.tar.gz
 
-RUN useradd -ms /bin/bash us8 
-USER us8
+#RUN useradd -ms /bin/bash us8 
+#USER us8
 WORKDIR /home/us8
 
 #CMD /usr/local/bin/uDataPacketService --config=service.ini
