@@ -101,7 +101,7 @@ target_link_libraries(libuSEEDLinkToRingServer
                               Boost::boost
                               Threads::Threads)
 if (${USE_TBB})
-   target_link_libraries(libuSEEDLinkToRingServer PRIVATE TBB::tbb)
+   target_link_libraries(libuSEEDLinkToRingServer PUBLIC TBB::tbb)
 else()
    target_link_libraries(libuSEEDLinkToRingServer PRIVATE concurrentqueue)
 endif() 
