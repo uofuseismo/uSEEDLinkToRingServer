@@ -62,8 +62,8 @@ jobs:
             #ls
             # Figure out version from app-name-MAJOR.MINOR.PATCH-Linux.tar.gz
             tarFile=$(ls *Linux.tar.gz)
-            version=$(echo ${tarFile} | sed 's/uDataPacketService-//g' | sed 's/-Linux.tar.gz//g')
-            #echo ${version}
+            version=$(echo ${tarFile} | sed 's/uSEEDLinkToRingServer-//g' | sed 's/-Linux.tar.gz//g')
+            echo ${version}
             docker build -t useedlinktoringserver:${version} -t useedlinktoringserver:latest -f ./Dockerfile.u24 .
             docker tag useedlinktoringserver:${version} quay.io/uuss/useedlinktoringserver:${version}
             docker push quay.io/uuss/useedlinktoringserver:${version}
