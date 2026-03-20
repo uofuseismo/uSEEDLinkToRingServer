@@ -63,10 +63,14 @@ jobs:
             # Figure out version from app-name-MAJOR.MINOR.PATCH-Linux.tar.gz
             tarFile=$(ls *Linux.tar.gz)
             version=$(echo ${tarFile} | sed 's/uSEEDLinkToRingServer-//g' | sed 's/-Linux.tar.gz//g')
-            echo ${version}
-            docker build -t useedlinktoringserver:${version} -t useedlinktoringserver:latest -f ./Dockerfile.u24 .
+            echo "Building container version ${version}"
+            docker build -t useedlinktoringserver:${version} -t useedlinktoringserver:latest -f ./Dockerfile.deb .
+            docker tag useedlinktoringserver quay.io/uuss/useedlinktoringserver
+            docker push quay.io/uuss/useedlinktoringserver
             docker tag useedlinktoringserver:${version} quay.io/uuss/useedlinktoringserver:${version}
+            echo "Uploading image"
             docker push quay.io/uuss/useedlinktoringserver:${version}
+
     # end steps
   # end deploy job
 
