@@ -6,10 +6,29 @@
 #include <opentelemetry/logs/provider.h>
 #include <opentelemetry/sdk/logs/logger_provider_factory.h>
 #include <opentelemetry/sdk/logs/simple_log_record_processor_factory.h>
+#ifndef NDEBUG
+#include <cassert>
+#endif
 #include "otelSpdlogSink.hpp"
 namespace
 {
 std::shared_ptr<opentelemetry::sdk::logs::LoggerProvider> loggerProvider{nullptr};
+
+void setVerbosityForSPDLOG(const int verbosity,
+                           spdlog::logger *logger)
+{
+#ifndef NDEBUG
+    assert(logger != nullptr);
+#endif
+    if (verbosity <= 1)
+    {   
+        logger->set_level(spdlog::level::critical);
+    }   
+    if (verbosity == 2){logger->set_level(spdlog::level::warn);}
+    if (verbosity == 3){logger->set_level(spdlog::level::info);}
+    if (verbosity >= 4){logger->set_level(spdlog::level::debug);}
+}
+
 
 std::shared_ptr<spdlog::logger> initializeLogger(const ::ProgramOptions &programOptions)
 {
@@ -48,6 +67,7 @@ std::shared_ptr<spdlog::logger> initializeLogger(const ::ProgramOptions &program
             = std::make_shared<spdlog::logger>
               (spdlog::logger ("", {consoleSink}));
     }
+    setVerbosityForSPDLOG(programOptions.verbosity, &*logger);
     return logger;
 }
 

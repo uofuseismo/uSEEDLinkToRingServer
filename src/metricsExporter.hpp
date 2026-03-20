@@ -21,6 +21,8 @@
 namespace
 {
 
+bool metricsInitialized{false};
+
 void initializeMetrics(const ::ProgramOptions &programOptions)
 {
     if (!programOptions.exportMetrics){return;}
@@ -57,6 +59,7 @@ void initializeMetrics(const ::ProgramOptions &programOptions)
         provider(std::move(metricsProvider));
 
     otel::sdk::metrics::Provider::SetMeterProvider(provider);
+    metricsInitialized = true;
 }
 
 /*
@@ -85,8 +88,12 @@ void initializeMetrics(const std::string &prometheusURL)
 
 void cleanupMetrics()
 {
-     std::shared_ptr<opentelemetry::metrics::MeterProvider> none;
-     opentelemetry::sdk::metrics::Provider::SetMeterProvider(none);
+    if (metricsInitialized)
+    {
+        std::shared_ptr<opentelemetry::metrics::MeterProvider> none;
+        opentelemetry::sdk::metrics::Provider::SetMeterProvider(none);
+    }
+    metricsInitialized = false;
 }
 }
 

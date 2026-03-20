@@ -36,7 +36,7 @@ std::atomic<bool> mInterrupted{false};
 namespace 
 {
 
-void setVerbosityForSPDLOG(int, spdlog::logger *logger);
+//void setVerbosityForSPDLOG(int, spdlog::logger *logger);
 std::pair<std::string, bool> parseCommandLineOptions(int argc, char *argv[]);
 
 
@@ -490,7 +490,7 @@ int main(int argc, char *argv[])
            overwrite);
 
     auto logger = ::initializeLogger(programOptions);
-    ::setVerbosityForSPDLOG(programOptions.verbosity, &*logger);
+    //::setVerbosityForSPDLOG(programOptions.verbosity, &*logger);
 
     // Setup metrics
     try
@@ -499,15 +499,15 @@ int main(int argc, char *argv[])
         {
             SPDLOG_LOGGER_INFO(logger,
                                "Configuring OpenTelmetry metrics provider");
-            ::initializeMetrics(programOptions);
         }
+        ::initializeMetrics(programOptions);
     }   
     catch (const std::exception &e) 
     {
         SPDLOG_LOGGER_CRITICAL(logger,
             "Failed to initialize metrics because {}",
             std::string {e.what()});
-        if (programOptions.exportLogs){::cleanupLogger();}
+        ::cleanupLogger();
         return EXIT_FAILURE;
     }
 
@@ -520,8 +520,8 @@ int main(int argc, char *argv[])
     catch (const std::exception &e)
     {
         spdlog::critical(e.what());
-        if (programOptions.exportMetrics){::cleanupMetrics();}
-        if (programOptions.exportLogs){::cleanupLogger();}
+        ::cleanupMetrics();
+        ::cleanupLogger();
         return EXIT_FAILURE;
     }
 
@@ -549,6 +549,7 @@ int main(int argc, char *argv[])
 namespace
 {
 
+/*
 void setVerbosityForSPDLOG(const int verbosity,
                            spdlog::logger *logger)
 {
@@ -563,6 +564,7 @@ void setVerbosityForSPDLOG(const int verbosity,
     if (verbosity == 3){logger->set_level(spdlog::level::info);}
     if (verbosity >= 4){logger->set_level(spdlog::level::debug);}
 }   
+*/
 
 /// Read the program options from the command line
 std::pair<std::string, bool> parseCommandLineOptions(int argc, char *argv[])
@@ -743,6 +745,20 @@ getSEEDLinkOptions(const boost::property_tree::ptree &propertyTree,
                 auto splitSelector = thisSplitSelector;
                 boost::algorithm::trim(splitSelector);
 
+                // Need to preprocess selector so there's no double spaces
+                for (int k = 1; k < splitSelector.size(); )
+                {
+                    if (splitSelector[k - 1] == splitSelector[k] &&
+                        splitSelector[k] == ' ' )
+                    {
+                        splitSelector.erase(k, 1);
+                    }
+                    else
+                    {
+                        ++k;
+                    }
+                }
+
                 boost::split(thisSelector, splitSelector,
                              boost::is_any_of(" \t"));
                 USEEDLinkToRingServer::StreamSelector selector;
@@ -751,38 +767,40 @@ getSEEDLinkOptions(const boost::property_tree::ptree &propertyTree,
                     throw std::invalid_argument("Empty selector");
                 }
                 // Require a network
-                boost::algorithm::trim(thisSelector.at(0));
-                selector.setNetwork(thisSelector.at(0));
+                auto network = thisSelector.at(0);
+                boost::algorithm::trim(network);
+                selector.setNetwork(network);
                 // Add a station?
                 if (splitSelector.size() > 1)
                 {
-                    boost::algorithm::trim(thisSelector.at(1));
-                    selector.setStation(thisSelector.at(1));
+                    auto station = thisSelector.at(1);
+                    boost::algorithm::trim(station);
+                    selector.setStation(station);
                 }
                 // Add channel + location code + data type
                 std::string channel{"*"};
                 std::string locationCode{"??"};
                 if (splitSelector.size() > 2)
                 {
-                    boost::algorithm::trim(thisSelector.at(2));
-                    channel = thisSelector.at(2);
+                    channel = thisSelector[2];
+                    boost::algorithm::trim(channel);
                 }
                 if (splitSelector.size() > 3)
                 {
-                    boost::algorithm::trim(thisSelector.at(3));
-                    locationCode = thisSelector.at(3);
+                    locationCode = thisSelector[3];
+                    boost::algorithm::trim(locationCode);
                 }
                 // Data type
                 auto dataType
                     = USEEDLinkToRingServer::StreamSelector::Type::All;
                 if (thisSelector.size() > 4)
                 {
-                    boost::algorithm::trim(thisSelector.at(4));
-                    if (thisSelector.at(4) == "D")
+                    boost::algorithm::trim(thisSelector[4]);
+                    if (thisSelector[4] == "D")
                     {
                         dataType = USEEDLinkToRingServer::StreamSelector::Type::Data;
                     }
-                    else if (thisSelector.at(4) == "A")
+                    else if (thisSelector[4] == "A")
                     {
                         dataType = USEEDLinkToRingServer::StreamSelector::Type::All;
                     }
