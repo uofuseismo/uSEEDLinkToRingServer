@@ -3,7 +3,7 @@ jobs:
   compile-job:
     docker:
       - image: quay.io/uuss/useedlinktoringserverbase
-    resource_class: large
+    resource_class: small
     steps:
       - checkout
       - run:
