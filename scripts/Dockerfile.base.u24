@@ -20,13 +20,17 @@ RUN export DEBIAN_FRONTEND=noninteractive &&\
     apt-get install -y file &&\
     apt-get install -y git &&\
     apt-get install -y clang &&\
+    apt-get install -y clang-tidy &&\
     apt-get install -y curl &&\
+    apt-get install -y libcurl4-openssl-dev &&\
     apt-get install -y autoconf &&\
     apt-get install -y make &&\
     apt-get install -y cmake &&\
     apt-get install -y libicu-dev &&\
     apt-get install -y libssl-dev &&\
-    apt-get install -y openssl
+    apt-get install -y openssl &&\
+    apt-get install -y libtbb-dev &&\
+    apt-get install -y ninja-build
 
 # We'll be using compression - zlib
 WORKDIR /home/ubuntu

@@ -71,6 +71,7 @@ if (BUILD_SHARED_LIBS)
 else()
    add_library(libuSEEDLinkToRingServer STATIC ${LIBRARY_SRC})
 endif()
+add_library(uSEEDLinkToRingServer::libuSEEDLinkToRingServer ALIAS libuSEEDLinkToRingServer)
 set_target_properties(libuSEEDLinkToRingServer PROPERTIES
                       CXX_STANDARD 23
                       CXX_STANDARD_REQUIRED YES 
@@ -108,22 +109,21 @@ target_include_directories(libuSEEDLinkToRingServer
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/src>
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
                            PUBLIC  $<INSTALL_INTERFACE:include>)
-add_library(uSEEDLinkToRingServer::libuSEEDLinkToRingServer ALIAS libuSEEDLinkToRingServer)
 
-add_executable(seedLinkToRingServer
+add_executable(uSEEDLinkToRingServer
                src/seedLinkToRingServer.cpp
                )
-set_target_properties(seedLinkToRingServer PROPERTIES
+set_target_properties(uSEEDLinkToRingServer PROPERTIES
                       CXX_STANDARD 23
                       CXX_STANDARD_REQUIRED YES
                       CXX_EXTENSIONS NO)
 if (${USE_TBB})
-   target_compile_definitions(seedLinkToRingServer PRIVATE USE_TBB)
+   target_compile_definitions(uSEEDLinkToRingServer PRIVATE USE_TBB)
 endif()
-target_include_directories(seedLinkToRingServer
+target_include_directories(uSEEDLinkToRingServer
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
                                    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>)
-target_link_libraries(seedLinkToRingServer
+target_link_libraries(uSEEDLinkToRingServer
                       PRIVATE uSEEDLinkToRingServer::libuSEEDLinkToRingServer
                               opentelemetry-cpp::otlp_http_log_record_exporter
                               opentelemetry-cpp::otlp_http_metric_exporter
@@ -133,9 +133,9 @@ target_link_libraries(seedLinkToRingServer
                               Boost::boost
                               Boost::program_options)
 if (${USE_TBB})
-   target_link_libraries(seedLinkToRingServer PRIVATE TBB::tbb)
+   target_link_libraries(uSEEDLinkToRingServer PRIVATE TBB::tbb)
 else()
-   target_link_libraries(seedLinkToRingServer PRIVATE concurrentqueue)
+   target_link_libraries(uSEEDLinkToRingServer PRIVATE concurrentqueue)
 endif()
 
 ##########################################################################################
@@ -186,7 +186,7 @@ install(TARGETS libuSEEDLinkToRingServer
         FILE_SET HEADERS
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         COMPONENT libraries)
-install(TARGETS seedLinkToRingServer
+install(TARGETS uSEEDLinkToRingServer
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         COMPONENT applications)
 #export(EXPORT ${PROJECT_NAME}-targets
@@ -212,7 +212,7 @@ if (${BUILD_CONTAINER})
                      COMMENT "Creating container file for ${PROJECT_NAME}"
                      COMMAND ${CMAKE_CPACK_COMMAND} -G DEB 
                      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} VERBATIM)
-   add_dependencies(${PROJECT_NAME}-u24 seedLinkToRingServer libuSEEDLinkToRingServer)
+   add_dependencies(${PROJECT_NAME}-u24 uSEEDLinkToRingServer libuSEEDLinkToRingServer)
    find_program(buildah_EXECUTABLE buildah)
    if (buildah_EXECUTABLE)
       add_custom_target(buildah
