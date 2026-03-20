@@ -495,7 +495,6 @@ USEEDLinkToRingServer::toDataLinkPackets(
         throw std::runtime_error("Failed to pack SID");
     }
     // Now do the data
-    int encodingInteger{-1};
     auto dataType = packet.getDataType(); 
     std::vector<double> i64Data;
     if (msRecord.numsamples > 0)

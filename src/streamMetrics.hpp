@@ -536,8 +536,8 @@ public:
     StreamMetrics(const std::string applicationName,
                   const USEEDLinkToRingServer::Packet &packet,
                   std::shared_ptr<spdlog::logger> logger) :
-        mApplicationName(applicationName),
-        mLogger(logger)
+        mLogger(logger),
+        mApplicationName(applicationName)
     {
         const auto streamIdentifier
             = packet.getStreamIdentifierReference();

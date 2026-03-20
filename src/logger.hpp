@@ -40,8 +40,8 @@ std::shared_ptr<spdlog::logger> initializeLogger(const ::ProgramOptions &program
         otel::exporter::otlp::OtlpHttpLogRecordExporterOptions httpOptions;
         httpOptions.url = programOptions.otelHTTPLogOptions.url 
                         + programOptions.otelHTTPLogOptions.suffix;
-        using providerPtr
-            = otel::nostd::shared_ptr<opentelemetry::logs::LoggerProvider>;
+        //using providerPtr
+        //    = otel::nostd::shared_ptr<opentelemetry::logs::LoggerProvider>;
         auto exporter
               = otel::exporter::otlp::OtlpHttpLogRecordExporterFactory::Create(httpOptions);
         auto processor

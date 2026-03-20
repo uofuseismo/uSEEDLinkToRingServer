@@ -217,7 +217,7 @@ public:
     void tabulateMetrics()
     {
         ::MetricsMap metricsMap; 
-        std::chrono::hours cleanMetricsInterval{2};
+        //std::chrono::hours cleanMetricsInterval{2};
         constexpr std::chrono::milliseconds timeOut{25};
 #ifndef NDEBUG
         //assert(!(mDataLinkClients.empty() && mSEEDLinkWriters.empty()));
@@ -746,7 +746,7 @@ getSEEDLinkOptions(const boost::property_tree::ptree &propertyTree,
                 boost::algorithm::trim(splitSelector);
 
                 // Need to preprocess selector so there's no double spaces
-                for (int k = 1; k < splitSelector.size(); )
+                for (int k = 1; k < static_cast<int> (splitSelector.size()); )
                 {
                     if (splitSelector[k - 1] == splitSelector[k] &&
                         splitSelector[k] == ' ' )
