@@ -6,6 +6,7 @@
 #include <chrono>
 #include "uSEEDLinkToRingServer/seedLinkClientOptions.hpp"
 #include "uSEEDLinkToRingServer/dataLinkClientOptions.hpp"
+//#include "uSEEDLinkToRingServer/seedLinkWriterOptions.hpp"
 
 #define APPLICATION_NAME "seedLinkToRingServer"
 
@@ -33,7 +34,10 @@ struct ProgramOptions
     ::OTelHTTPMetricsOptions otelHTTPMetricsOptions;
     ::OTelHTTPLogOptions otelHTTPLogOptions;
     //std::string prometheusURL{"localhost:9020"}; 
-    std::vector<USEEDLinkToRingServer::DataLinkClientOptions> dataLinkClientOptions;
+    std::vector<USEEDLinkToRingServer::DataLinkClientOptions>
+        dataLinkClientOptions;
+    //std::vector<USEEDLinkToRingServer::SEEDLinkWriterOptions>
+    //    seedLinkWriterOptions;
     USEEDLinkToRingServer::SEEDLinkClientOptions seedLinkClientOptions;
     std::string dataSource;
     int importQueueSize{8192};

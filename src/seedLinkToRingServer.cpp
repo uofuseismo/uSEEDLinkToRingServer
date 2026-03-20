@@ -68,6 +68,10 @@ public:
               >
               (mImportQueueMaximumSize);
 #endif
+        if (mOptions.dataLinkClientOptions.empty())
+        {
+            throw std::invalid_argument("No writers configured");
+        } 
         for (auto &dataLinkClientOptions : mOptions.dataLinkClientOptions)
         {
             auto dataLinkClient
@@ -75,6 +79,15 @@ public:
                   (dataLinkClientOptions, mLogger);
             mDataLinkClients.push_back(std::move(dataLinkClient));
         }
+        /*
+        for (auto &seedLinkWriterOptions : mOptions.seedLinkWriterOptions)
+        {
+            auto seedLinkWriter
+                = std::make_unique<USEEDLinkToRingServer::SEEDLinkWriter>
+                   (seedLinkWriterOptions, mLogger);
+            mSEEDLinkWriters.push_back(std::move(seedLinkWriter));
+        }
+        */
         mSEEDLinkClient
             = std::make_unique<USEEDLinkToRingServer::SEEDLinkClient>
               (mAddPacketCallbackFunction,
@@ -93,11 +106,20 @@ public:
         stop();
         mKeepRunning = true;
         mMetricsThread = std::thread(&::Process::tabulateMetrics, this);
+        // Start the writers
         mDataLinkClientFutures.clear();
         for (auto &dataLinkClient : mDataLinkClients)
         {
             mDataLinkClientFutures.push_back(dataLinkClient->start());
         }
+        /*
+        mSEEDLinkWriterFutures.clear();
+        for (auto &seedLinkWriter : mSEEDLinkWriters)
+        {
+            mSEEDLinkWriterFutures.push_back(seedLinkWriter->start());
+        }
+        */
+        // Then the reader
         mSEEDLinkClientFuture = mSEEDLinkClient->start();
     }
     /// Stops the processes
@@ -105,16 +127,32 @@ public:
     {
         mKeepRunning = false;
         if (mMetricsThread.joinable()){mMetricsThread.join();}
+        // Stop acquiring and give writers a chance to clear 
+        if (mSEEDLinkClient){mSEEDLinkClient->stop();}
+        std::this_thread::sleep_for(std::chrono::milliseconds {15});
+        // Stop the writers
         for (auto &dataLinkClient : mDataLinkClients)
         {
             if (dataLinkClient){dataLinkClient->stop();}
         }
-        if (mSEEDLinkClient){mSEEDLinkClient->stop();}
+        /*
+        for (auto &seedLinkWriter : mSEEDLinkWriters)
+        {
+            if (seedLinkWriter){seedLinkWriter->stop();}
+        }
+        */
+        // Futures
+        if (mSEEDLinkClientFuture.valid()){mSEEDLinkClientFuture.get();}
         for (auto &dataLinkClientFuture : mDataLinkClientFutures)
         {
             if (dataLinkClientFuture.valid()){dataLinkClientFuture.get();}
         }
-        if (mSEEDLinkClientFuture.valid()){mSEEDLinkClientFuture.get();}
+        /*
+        for (auto &seedLinkWriterFuture : mSEEDLinkWriterFutures)
+        {
+            if (seedLinkWriterFuture.valid()){seedLinkWriterFuture.get();}
+        }
+        */
     }
     /// This callback enables the SEEDLink client to add packets to be processed
     void addPacketCallback(USEEDLinkToRingServer::Packet &&packet)
@@ -182,8 +220,11 @@ public:
         std::chrono::hours cleanMetricsInterval{2};
         constexpr std::chrono::milliseconds timeOut{25};
 #ifndef NDEBUG
+        //assert(!(mDataLinkClients.empty() && mSEEDLinkWriters.empty()));
         assert(!mDataLinkClients.empty());
 #endif
+        auto movePacket = mDataLinkClients.size() == 1 ? true : false;
+        //                + mSEEDLinkWriters.size() == 1 ? true : false;
         while (mKeepRunning.load())
         {
             // Periodically tabulate the latest metrics.  Sometimes a 
@@ -217,7 +258,6 @@ public:
                     }
                 }
                 // Propagate
-                auto movePacket = mDataLinkClients.size() == 1 ? true : false; 
                 for (auto &dataLinkClient : mDataLinkClients)
                 {
                     try
@@ -234,10 +274,32 @@ public:
                     catch (const std::exception &e)
                     {
                         SPDLOG_LOGGER_WARN(mLogger,
-                           "Failed to enqueue packet for publishing because {}",
+                           "Failed to enqueue packet to DataLink for publishing because {}",
                            std::string {e.what()});
                     }
                 }
+                /*
+                for (auto &seedLinkWriter : mSEEDLinkWriters)
+                {
+                    try
+                    {
+                        if (movePacket)
+                        {
+                            seedLinkWriter->enqueue(std::move(packet));
+                        }
+                        else
+                        {
+                            seedLinkWriter->enqueue(packet);
+                        }
+                    }
+                    catch (const std::exception &e)
+                    {
+                        SPDLOG_LOGGER_WARN(mLogger,
+                          "Failed to enqueue packet to SEEDLink for publishing because {}",
+                           std::string {e.what()});
+                    }
+                }
+                */
             }
             else
             {
@@ -282,6 +344,26 @@ public:
                                    std::string {e.what()});
             isOkay = false;
         }
+        /*
+        try
+        {
+            for (auto &seedLinkWriterFuture : mSEEDLinkWriterFutures)
+            {
+                auto status = seedLinkWriterFuture.wait_for(timeOut);
+                if (status == std::future_status::ready)
+                {
+                    seedLinkWriterFuture.get();
+                }
+            }
+        }
+        catch (const std::exception &e)
+        {
+            SPDLOG_LOGGER_CRITICAL(mLogger,
+                                   "Fatal error in SEEDLink export: {}",
+                                   std::string {e.what()});
+            isOkay = false;
+        }
+        */
         return isOkay;
     }
     void handleMainThread()
@@ -340,6 +422,7 @@ public:
     std::shared_ptr<spdlog::logger> mLogger{nullptr};    
     mutable std::future<void> mSEEDLinkClientFuture;
     mutable std::vector<std::future<void>> mDataLinkClientFutures;
+    //mutable std::vector<std::future<void>> mSEEDLinkWriterFutures;
     mutable std::mutex mStopMutex;
 #ifdef USE_TBB
     oneapi::tbb::concurrent_bounded_queue
@@ -354,6 +437,8 @@ public:
     std::condition_variable mStopCondition;
     std::vector<std::unique_ptr<USEEDLinkToRingServer::DataLinkClient>>
         mDataLinkClients;
+    //std::vector<std::unique_ptr<USEEDLinkToRingServer::SEEDLinkWriter>>
+    //    mSEEDLinkWriters;
     std::unique_ptr<USEEDLinkToRingServer::SEEDLinkClient> mSEEDLinkClient{nullptr};
     std::function<void(USEEDLinkToRingServer::Packet &&)>
         mAddPacketCallbackFunction
@@ -541,7 +626,6 @@ getDataLinkOptions(const boost::property_tree::ptree &propertyTree,
     {   
         dataLinkClientOptions.disableWriteMiniSEED3();
     }   
-    //auto dataLinkWriterName = options.applicationName + "-DALIWriter";
     auto dataLinkWriterName
         = propertyTree.get<std::string> (sectionName + ".name",
                                          defaultDataLinkWriterName);
@@ -549,6 +633,42 @@ getDataLinkOptions(const boost::property_tree::ptree &propertyTree,
 
     return dataLinkClientOptions;
 }
+
+/*
+USEEDLinkToRingServer::SEEDLinkWriterOptions
+getSEEDLinkWriterOptions(const boost::property_tree::ptree &propertyTree,
+                         const std::string &sectionName,
+                         const std::string &defaultSEEDLinkWriterName)
+{
+    USEEDLinkToRingServer::SEEDLinkWriterOptions seedLinkWriterOptions;
+    auto seedLinkHost
+        = propertyTree.get<std::string> (sectionName + ".host",
+                                         seedLinkWriterOptions.getHost());
+    seedLinkWriterOptions.setHost(seedLinkHost);
+    auto seedLinkPort
+        = propertyTree.get<uint16_t> (sectionName + ".port",
+                                      seedLinkWriterOptions.getPort());
+    seedLinkWriterOptions.setPort(seedLinkPort);
+
+    auto writeMiniSEED3
+        = propertyTree.get<bool> (sectionName + ".writeMiniSEED3",
+                                  seedLinkWriterOptions.writeMiniSEED3());
+    if (writeMiniSEED3)
+    {   
+        seedLinkWriterOptions.enableWriteMiniSEED3();
+    }   
+    else
+    {   
+        seedLinkWriterOptions.disableWriteMiniSEED3();
+    }   
+    auto seedLinkWriterName
+        = propertyTree.get<std::string> (sectionName + ".name",
+                                         defaultSEEDLinkWriterName);
+    seedLinkWriterOptions.setName(seedLinkWriterName);
+
+    return seedLinkWriterOptions;
+}
+*/
 
 USEEDLinkToRingServer::SEEDLinkClientOptions
 getSEEDLinkOptions(const boost::property_tree::ptree &propertyTree,
@@ -771,7 +891,44 @@ std::string getOTelCollectorURL(boost::property_tree::ptree &propertyTree,
                               + std::to_string(prometheusPort);
     }
 */
-    // DataLink
+/*
+    // SEEDLink Writer
+    std::vector<USEEDLinkToRingServer::SEEDLinkWriterOptions>
+        seedLinkWriterOptions;
+    if (propertyTree.get_optional<std::string> ("SEEDLinkWriter.host"))
+    {
+        auto seedLinkWriterName = options.applicationName + "-SEEDLinkWriter";
+        seedLinkWriterOptions.push_back
+        (
+           getSEEDLinkWriterOptions(propertyTree, "SEEDLinkWriter", 
+                                   seedLinkWriterName)
+        );
+    }
+    else
+    {
+        for (int i = 1; i < 32768; ++i)
+        {
+            auto seedLinkSection = "SEEDLinkWriter_" + std::to_string(i);
+            auto seedLinkWriterName = options.applicationName
+                                    + "-SEEDLinkWriter-" + std::to_string(i);
+            if (propertyTree.get_optional<std::string>
+                (seedLinkSection + ".host"))
+            {
+                seedLinkWriterOptions.push_back(
+                   getSEEDLinkWriterOptions(propertyTree,
+                                            seedLinkSection,
+                                            seedLinkWriterName));
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
+    options.seedLinkWriterOptions = seedLinkWriterOptions;
+*/
+
+    // DataLink Writer
     std::vector<USEEDLinkToRingServer::DataLinkClientOptions>
         dataLinkClientOptions;
     if (propertyTree.get_optional<std::string> ("DataLink.host"))
@@ -804,6 +961,11 @@ std::string getOTelCollectorURL(boost::property_tree::ptree &propertyTree,
         }
     }
     options.dataLinkClientOptions = dataLinkClientOptions;
+
+    if (options.dataLinkClientOptions.empty())
+    {
+        throw std::runtime_error("No data writer options specified");
+    }
 /*
     USEEDLinkImport::DataLinkClientOptions dataLinkClientOptions;
     auto dataLinkHost
@@ -837,10 +999,10 @@ std::string getOTelCollectorURL(boost::property_tree::ptree &propertyTree,
 */
 
     // SEEDLink
-    if (propertyTree.get_optional<std::string> ("SEEDLink.host"))
+    if (propertyTree.get_optional<std::string> ("SEEDLinkReader.host"))
     {
         options.seedLinkClientOptions
-             = ::getSEEDLinkOptions(propertyTree, "SEEDLink");
+             = ::getSEEDLinkOptions(propertyTree, "SEEDLinkReader");
     }   
 
     return options;

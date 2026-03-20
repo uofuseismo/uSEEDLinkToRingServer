@@ -145,6 +145,15 @@ int DataLinkClientOptions::getMiniSEEDRecordSize() const noexcept
 }
 
 /// Max queue size
+void DataLinkClientOptions::setMaximumInternalQueueSize(const int queueSize)
+{
+    if (queueSize <= 0)
+    {
+        throw std::invalid_argument("Queue size must be positive");
+    }
+    pImpl->mMaximumInternalQueueSize = queueSize;
+}
+
 int DataLinkClientOptions::getMaximumInternalQueueSize() const noexcept
 {
     return pImpl->mMaximumInternalQueueSize;

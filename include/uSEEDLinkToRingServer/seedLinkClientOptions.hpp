@@ -1,7 +1,7 @@
 #ifndef USEED_LINK_TO_RING_SERVER_SEED_LINK_CLIENT_OPTIONS_HPP
 #define USEED_LINK_TO_RING_SERVER_SEED_LINK_CLIENT_OPTIONS_HPP
 #include <memory>
-#include <functional>
+#include <vector>
 #include <filesystem>
 #include <future>
 namespace USEEDLinkToRingServer

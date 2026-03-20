@@ -289,6 +289,7 @@ public:
                 std::this_thread::sleep_for(timeOut);
             }
         }
+        SPDLOG_LOGGER_INFO(mLogger, "Exiting");
     }
     /// Enqueues the packet
     void enqueue(Packet &&packet)

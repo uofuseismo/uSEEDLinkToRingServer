@@ -4,6 +4,8 @@ enable_testing()
 
 option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
 option(USE_TBB "Build using Thread Building Blocks" OFF)
+option(BUILD_CONTAINER "Build the Ubuntu container" ON)
+option(BUILD_TESTS "Build unit tests" ON)
 
 include(GenerateExportHeader)
 include(FetchContent)
@@ -49,7 +51,9 @@ if (${USE_TBB})
    find_package(TBB COMPONENTS tbb REQUIRED)
 endif()
 find_package(Boost COMPONENTS program_options REQUIRED)
-find_package(Catch2)
+if (${BUILD_TESTS})
+   find_package(Catch2 3 REQUIRED)
+endif() 
 find_package(Threads REQUIRED)
 
 set(LIBRARY_SRC
@@ -90,8 +94,7 @@ target_sources(libuSEEDLinkToRingServer
                   include/uSEEDLinkToRingServer/streamSelector.hpp
                   include/uSEEDLinkToRingServer/version.hpp)
 target_link_libraries(libuSEEDLinkToRingServer
-                      PRIVATE opentelemetry-cpp::prometheus_exporter
-                              mseed::mseed_static
+                      PRIVATE mseed::mseed_static
                               spdlog::spdlog_header_only
                               SEEDLink::SEEDLink DataLink::DataLink
                               Boost::boost
@@ -106,8 +109,6 @@ target_include_directories(libuSEEDLinkToRingServer
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
                            PUBLIC  $<INSTALL_INTERFACE:include>)
 add_library(uSEEDLinkToRingServer::libuSEEDLinkToRingServer ALIAS libuSEEDLinkToRingServer)
-
-
 
 add_executable(seedLinkToRingServer
                src/seedLinkToRingServer.cpp
@@ -124,7 +125,6 @@ target_include_directories(seedLinkToRingServer
                                    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>)
 target_link_libraries(seedLinkToRingServer
                       PRIVATE uSEEDLinkToRingServer::libuSEEDLinkToRingServer
-                              opentelemetry-cpp::prometheus_exporter
                               opentelemetry-cpp::otlp_http_log_record_exporter
                               opentelemetry-cpp::otlp_http_metric_exporter
                               spdlog::spdlog_header_only
@@ -142,7 +142,7 @@ endif()
 #                                         Tests                                          #
 ##########################################################################################
 
-if (${Catch2_FOUND})
+if (PROJECT_IS_TOP_LEVEL AND ${BUILD_TESTS})
    add_executable(unitTests
                   testing/packet.cpp
                   testing/seedLink.cpp
@@ -201,9 +201,31 @@ install(FILES
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
 
 ##########################################################################################
-#                                     CPack Packaging                                    #
+#                                        Containers                                      #
 ##########################################################################################
 include(CPackComponent)
+if (${BUILD_CONTAINER})
+   message("Will configure container")
+   configure_file(${CMAKE_CURRENT_SOURCE_DIR}/scripts/Dockerfile.u24.in
+                  ${CMAKE_CURRENT_BINARY_DIR}/Dockerfile.u24 @ONLY)
+   add_custom_target(${PROJECT_NAME}-u24
+                     COMMENT "Creating container file for ${PROJECT_NAME}"
+                     COMMAND ${CMAKE_CPACK_COMMAND} -G DEB 
+                     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} VERBATIM)
+   add_dependencies(${PROJECT_NAME}-u24 seedLinkToRingServer libuSEEDLinkToRingServer)
+   find_program(buildah_EXECUTABLE buildah)
+   if (buildah_EXECUTABLE)
+      add_custom_target(buildah
+                        COMMENT "Preparing the container with buildah"
+                        COMMAND ${buildah_EXECUTABLE} bud -t useedlinktoringserver:${PROJECT_VERSION} -t useedlinktoringserver:latest -f ./Dockerfile.u24
+                        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} VERBATIM)
+      add_dependencies(buildah ${PROJECT_NAME}-u24)
+   endif()
+endif()
+
+##########################################################################################
+#                                     CPack Packaging                                    #
+##########################################################################################
 set(CPACK_PACKAGE_NAME ${PROJECT_NAME})
 set(CPACK_PACKAGE_VENDOR "UUSS")
 set(CPACK_PACKAGE_CONTACT "ben.baker@utah.edu")
