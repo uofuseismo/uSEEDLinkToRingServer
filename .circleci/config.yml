@@ -64,7 +64,7 @@ jobs:
             tarFile=$(ls *Linux.tar.gz)
             version=$(echo ${tarFile} | sed 's/uSEEDLinkToRingServer-//g' | sed 's/-Linux.tar.gz//g')
             echo "Building container version ${version}"
-            docker build -t useedlinktoringserver:${version} -t useedlinktoringserver:latest -f ./Dockerfile.deb .
+            docker build -t useedlinktoringserver:${version} -t useedlinktoringserver:latest -f ./Dockerfile.u24 .
             docker tag useedlinktoringserver quay.io/uuss/useedlinktoringserver
             docker push quay.io/uuss/useedlinktoringserver
             docker tag useedlinktoringserver:${version} quay.io/uuss/useedlinktoringserver:${version}
