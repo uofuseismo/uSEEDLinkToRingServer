@@ -82,6 +82,9 @@ public:
     /// @result A string representation of the selector.
     [[nodiscard]] std::string getSelector() const noexcept;
 
+    /// @brief Creates a selector from a string like UU CWU HH? 01 D
+    [[nodiscard]] static StreamSelector fromString(const std::string &streamSelector);
+
     /// @name Destructors
     /// @{
 

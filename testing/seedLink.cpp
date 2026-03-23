@@ -28,6 +28,14 @@ TEST_CASE("USEEDLinkToRingServer::StreamSelector", "[streamSelector]")
         selector.setSelector("", "01", USR::StreamSelector::Type::Data);
         REQUIRE(selector.getSelector() == "01*.D");
     }   
+    SECTION("From String")
+    {
+        auto streamSelector
+           = USR::StreamSelector::fromString(" UU bhu  hH?  01 d ");
+        REQUIRE(streamSelector.getNetwork() == "UU");
+        REQUIRE(streamSelector.getStation() == "BHU");
+        REQUIRE(streamSelector.getSelector() == "01HH?.D");
+    }
 }
 
 TEST_CASE("USEEDLinkToRingServer::StreamSelector", "[clienOptions]")
