@@ -42,7 +42,7 @@ void msRecordHandler(char *record, int recordLength, void *buffer)
         spdlog::warn("Error decoding packet");
     }
 
-    std::string nextRecord(record, record + recordLength);
+    std::string nextRecord(record, recordLength); //record + recordLength);
     auto outputPackets
         = reinterpret_cast<std::vector<DataLinkPacket> *> (buffer);
     DataLinkPacket packet

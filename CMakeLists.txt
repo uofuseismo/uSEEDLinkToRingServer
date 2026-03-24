@@ -7,6 +7,7 @@ option(USE_TBB "Build using Thread Building Blocks" OFF)
 option(BUILD_CONTAINER "Build the Ubuntu container" ON)
 option(BUILD_TESTS "Build unit tests" ON)
 option(WITH_CONAN "Build using Conan - OTel is wonky" OFF)
+option(USE_CLANG_TIDY "Build using clang-tidy" OFF)
 
 include(GenerateExportHeader)
 include(FetchContent)
@@ -46,9 +47,9 @@ find_package(spdlog REQUIRED)
 find_package(libmseed REQUIRED)
 if (${WITH_CONAN})
    message("Will use Conan OTLP exporters")
-   find_package(opentelemetry-cpp CONFIG REQUIRED COMPONENTS exporter_otlp_grpc REQUIRED)
+   find_package(opentelemetry-cpp CONFIG COMPONENTS exporter_otlp_grpc REQUIRED)
 else()
-   find_package(opentelemetry-cpp CONFIG REQUIRED COMPONENTS exporters_otlp_http REQUIRED)
+   find_package(opentelemetry-cpp CONFIG COMPONENTS exporters_otlp_http REQUIRED)
 endif()
 if (${USE_TBB})
    message("Will compile with TBB")
@@ -61,6 +62,18 @@ endif()
 find_package(Threads REQUIRED)
 find_package(SEEDLink REQUIRED)
 find_package(DataLink REQUIRED)
+
+if (PROJECT_IS_TOP_LEVEL AND ${USE_CLANG_TIDY})
+   find_program(CLANG_TIDY_EXECUTABLE NAMES "clang-tidy")
+   if (CLANG_TIDY_EXECUTABLE)
+      message("Using clang-tidy  ${CLANG_TIDY_EXECUTABLE}")
+      set(CMAKE_C_CLANG_TIDY   ${CLANG_TIDY_EXECUTABLE} -p ${CMAKE_BINARY_DIR})
+      set(CMAKE_CXX_CLANG_TIDY ${CLANG_TIDY_EXECUTABLE} -p ${CMAKE_BINARY_DIR})
+      #set(CLANG_TIDY_COMMAND ${CLANG_TIDY_EXECUTABLE} "-config=${CMAKE_SOURCE_DIR}/.clang-tidy")
+   else()
+      message("clang-tidy not found")
+   endif()
+endif()
 
 set(LIBRARY_SRC
     src/dataLinkClient.cpp
@@ -83,6 +96,9 @@ set_target_properties(libuSEEDLinkToRingServer PROPERTIES
                       CXX_STANDARD_REQUIRED YES 
                       CXX_EXTENSIONS NO 
                       OUTPUT_NAME uSEEDLinkToRingServer)
+#if (${CLANG_TIDY_COMMAND})
+#   set_target_properties(libuSEEDLinkToRingServer PROPERTIES CXX_CLANG_TIDY ${CLANG_TIDY_COMMAND})
+#endif()
 if (${USE_TBB})
    target_compile_definitions(libuSEEDLinkToRingServer PRIVATE USE_TBB)
 endif()
@@ -136,6 +152,7 @@ target_link_libraries(uSEEDLinkToRingServer
                               Threads::Threads
                               Boost::boost
                               Boost::program_options)
+
 if (${WITH_CONAN})
    target_link_libraries(uSEEDLinkToRingServer
                          PRIVATE opentelemetry-cpp::opentelemetry-cpp

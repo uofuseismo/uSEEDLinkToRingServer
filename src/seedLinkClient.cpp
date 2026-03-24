@@ -26,7 +26,7 @@ std::vector<Packet>
     {   
         // Convert every packet in the buffer
         constexpr int8_t verbose{0};
-        constexpr uint32_t flags{MSF_UNPACKDATA};
+        const uint32_t flags{MSF_UNPACKDATA};
         Packet dataPacket;
         MS3Record *miniSEEDRecord{nullptr};
         auto returnCode = msr3_parse(msRecord + offset,
@@ -36,10 +36,11 @@ std::vector<Packet>
         if (returnCode == MS_NOERROR && miniSEEDRecord)
         {
             // SNCL
-            std::array<char, 64> networkWork;
-            std::array<char, 64> stationWork;
-            std::array<char, 64> channelWork;
-            std::array<char, 64> locationWork;
+            constexpr size_t MAX_CHAR_LENGTH{64};
+            std::array<char, MAX_CHAR_LENGTH> networkWork;
+            std::array<char, MAX_CHAR_LENGTH> stationWork;
+            std::array<char, MAX_CHAR_LENGTH> channelWork;
+            std::array<char, MAX_CHAR_LENGTH> locationWork;
             std::fill(networkWork.begin(),  networkWork.end(), '\0');
             std::fill(stationWork.begin(),  stationWork.end(), '\0');
             std::fill(channelWork.begin(),  channelWork.end(), '\0'); 

@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <iostream>
 #include <mutex>
 #include <condition_variable>
@@ -29,6 +30,10 @@
 #include "logger.hpp"
 #include "metricsExporter.hpp"
 
+namespace
+{
+constexpr int DEFAULT_QUEUE_SIZE = 8192;
+}
 
 std::atomic<bool> mInterrupted{false};
 
@@ -37,7 +42,7 @@ namespace
 {
 
 //void setVerbosityForSPDLOG(int, spdlog::logger *logger);
-std::pair<std::string, bool> parseCommandLineOptions(int argc, char *argv[]);
+std::pair<std::string, bool> parseCommandLineOptions(int argc, char **argv);
 
 
 class Process
@@ -129,7 +134,8 @@ public:
         if (mMetricsThread.joinable()){mMetricsThread.join();}
         // Stop acquiring and give writers a chance to clear 
         if (mSEEDLinkClient){mSEEDLinkClient->stop();}
-        std::this_thread::sleep_for(std::chrono::milliseconds {15});
+        constexpr std::chrono::milliseconds pause{15};
+        std::this_thread::sleep_for(pause); //std::chrono::milliseconds {15});
         // Stop the writers
         for (auto &dataLinkClient : mDataLinkClients)
         {
@@ -380,7 +386,8 @@ public:
                     mStopRequested = true;
                     break;
                 }
-                if (!checkFuturesOkay(std::chrono::milliseconds {5}))
+                constexpr std::chrono::milliseconds checkPause{5};
+                if (!checkFuturesOkay(checkPause))
                 {
                     SPDLOG_LOGGER_CRITICAL(mLogger,
                        "Futures exception caught; terminating app");
@@ -388,8 +395,9 @@ public:
                     break;
                 }
                 std::unique_lock<std::mutex> lock(mStopMutex);
+                constexpr std::chrono::milliseconds waitFor{100};
                 mStopCondition.wait_for(lock,
-                                        std::chrono::milliseconds {100},
+                                        waitFor, //std::chrono::milliseconds {100},
                                         [this]
                                         {
                                               return mStopRequested;
@@ -410,18 +418,23 @@ public:
     }
     static void catchSignals()
     {   
-        struct sigaction action;
+        struct sigaction action{};
         action.sa_handler = signalHandler;
         action.sa_flags = 0;
         sigemptyset(&action.sa_mask);
         sigaction(SIGINT,  &action, NULL);
         sigaction(SIGTERM, &action, NULL);
     }   
+
+    Process(const Process &) = delete;
+    Process(Process &&) noexcept  = delete;
+    Process& operator=(const Process &) = delete;
+    Process& operator=(Process &&) noexcept = delete;
 //private:
     ::ProgramOptions mOptions;
     std::shared_ptr<spdlog::logger> mLogger{nullptr};    
     mutable std::future<void> mSEEDLinkClientFuture;
-    mutable std::vector<std::future<void>> mDataLinkClientFutures;
+    mutable std::vector<std::future<void>> mDataLinkClientFutures{};
     //mutable std::vector<std::future<void>> mSEEDLinkWriterFutures;
     mutable std::mutex mStopMutex;
 #ifdef USE_TBB
@@ -436,7 +449,7 @@ public:
     std::thread mMetricsThread;
     std::condition_variable mStopCondition;
     std::vector<std::unique_ptr<USEEDLinkToRingServer::DataLinkClient>>
-        mDataLinkClients;
+        mDataLinkClients{};
     //std::vector<std::unique_ptr<USEEDLinkToRingServer::SEEDLinkWriter>>
     //    mSEEDLinkWriters;
     std::unique_ptr<USEEDLinkToRingServer::SEEDLinkClient> mSEEDLinkClient{nullptr};
@@ -450,7 +463,7 @@ public:
     std::atomic<uint64_t> mImportPacketsPopped{0};
     std::atomic<uint64_t> mImportPacketsFailedToEnqueue{0};
     std::atomic<bool> mKeepRunning{true};
-    int mImportQueueMaximumSize{8192};
+    int mImportQueueMaximumSize{DEFAULT_QUEUE_SIZE};
     bool mStopRequested{false};
 };
 
@@ -567,7 +580,7 @@ void setVerbosityForSPDLOG(const int verbosity,
 */
 
 /// Read the program options from the command line
-std::pair<std::string, bool> parseCommandLineOptions(int argc, char *argv[])
+std::pair<std::string, bool> parseCommandLineOptions(int argc, char **argv)
 {
     std::string iniFile;
     boost::program_options::options_description desc(R"""(
@@ -678,7 +691,8 @@ getSEEDLinkOptions(const boost::property_tree::ptree &propertyTree,
 {
     USEEDLinkToRingServer::SEEDLinkClientOptions clientOptions;
     auto host = propertyTree.get<std::string> (clientName + ".host");
-    auto port = propertyTree.get<uint16_t> (clientName + ".port", 18000);
+    constexpr uint16_t defaultPort{18000};
+    auto port = propertyTree.get<uint16_t> (clientName + ".port", defaultPort);
     clientOptions.setHost(host);
     clientOptions.setPort(port);
     auto stateFile
@@ -725,7 +739,8 @@ getSEEDLinkOptions(const boost::property_tree::ptree &propertyTree,
         }   
     }
 
-    for (int iSelector = 1; iSelector <= 32768; ++iSelector)
+    constexpr int maxSelectors{32768};
+    for (int iSelector = 1; iSelector <= maxSelectors; ++iSelector)
     {
         std::string selectorName{clientName
                                + ".data_selector_"
@@ -822,11 +837,12 @@ getSEEDLinkOptions(const boost::property_tree::ptree &propertyTree,
 std::string getOTelCollectorURL(boost::property_tree::ptree &propertyTree,
                                 const std::string &section)
 {
+    constexpr uint16_t defaultPort{4218};
     std::string result;
     std::string otelCollectorHost 
         = propertyTree.get<std::string> (section + ".host", "");
     uint16_t otelCollectorPort
-        = propertyTree.get<uint16_t> (section + ".port", 4218);
+        = propertyTree.get<uint16_t> (section + ".port", defaultPort);
     if (!otelCollectorHost.empty())
     {   
         result = otelCollectorHost + ":" 
@@ -964,7 +980,8 @@ std::string getOTelCollectorURL(boost::property_tree::ptree &propertyTree,
     }
     else
     {
-        for (int i = 1; i < 32768; ++i)
+        constexpr int MAX_CLIENTS{32768};
+        for (int i = 1; i < MAX_CLIENTS; ++i)
         {
             auto dataLinkSection = "DataLink_" + std::to_string(i);
             auto dataLinkWriterName = options.applicationName
