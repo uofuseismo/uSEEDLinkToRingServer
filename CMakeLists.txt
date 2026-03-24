@@ -6,6 +6,7 @@ option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
 option(USE_TBB "Build using Thread Building Blocks" OFF)
 option(BUILD_CONTAINER "Build the Ubuntu container" ON)
 option(BUILD_TESTS "Build unit tests" ON)
+option(WITH_CONAN "Build using Conan - OTel is wonky" OFF)
 
 include(GenerateExportHeader)
 include(FetchContent)
@@ -43,9 +44,12 @@ endif()
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 find_package(spdlog REQUIRED)
 find_package(libmseed REQUIRED)
-find_package(SEEDLink REQUIRED)
-find_package(DataLink REQUIRED)
-find_package(opentelemetry-cpp REQUIRED)
+if (${WITH_CONAN})
+   message("Will use Conan OTLP exporters")
+   find_package(opentelemetry-cpp CONFIG REQUIRED COMPONENTS exporter_otlp_grpc REQUIRED)
+else()
+   find_package(opentelemetry-cpp CONFIG REQUIRED COMPONENTS exporters_otlp_http REQUIRED)
+endif()
 if (${USE_TBB})
    message("Will compile with TBB")
    find_package(TBB COMPONENTS tbb REQUIRED)
@@ -55,6 +59,8 @@ if (${BUILD_TESTS})
    find_package(Catch2 3 REQUIRED)
 endif() 
 find_package(Threads REQUIRED)
+find_package(SEEDLink REQUIRED)
+find_package(DataLink REQUIRED)
 
 set(LIBRARY_SRC
     src/dataLinkClient.cpp
@@ -125,13 +131,30 @@ target_include_directories(uSEEDLinkToRingServer
                                    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>)
 target_link_libraries(uSEEDLinkToRingServer
                       PRIVATE uSEEDLinkToRingServer::libuSEEDLinkToRingServer
-                              opentelemetry-cpp::otlp_http_log_record_exporter
-                              opentelemetry-cpp::otlp_http_metric_exporter
                               spdlog::spdlog_header_only
                               mseed::mseed_static
                               Threads::Threads
                               Boost::boost
                               Boost::program_options)
+if (${WITH_CONAN})
+   target_link_libraries(uSEEDLinkToRingServer
+                         PRIVATE opentelemetry-cpp::opentelemetry-cpp
+                                 opentelemetry-cpp::exporter_otlp_grpc
+                                 opentelemetry-cpp::exporter_otlp_grpc_client
+                                 opentelemetry-cpp::exporter_otlp_grpc_metrics
+                                 opentelemetry-cpp::exporter_otlp_http 
+                                 opentelemetry-cpp::exporter_otlp_http_client
+                                 opentelemetry-cpp::exporter_otlp_http_metric
+                                 opentelemetry-cpp::exporter_otlp_http_log
+                                 opentelemetry-cpp::metrics
+                                 opentelemetry-cpp::common
+                                 opentelemetry-cpp::api)
+else()
+   target_link_libraries(uSEEDLinkToRingServer
+                         PRIVATE opentelemetry-cpp::otlp_http_log_record_exporter
+                                 opentelemetry-cpp::otlp_http_metric_exporter)
+endif()
+
 if (${USE_TBB})
    target_link_libraries(uSEEDLinkToRingServer PRIVATE TBB::tbb)
 else()
