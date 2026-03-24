@@ -36,27 +36,26 @@ RUN export DEBIAN_FRONTEND=noninteractive &&\
     apt-get install -y python3-pip
 
 # Conan
-#RUN python3 -m venv venv && source ./venv/bin/activate &&\
-#    pip install conan &&\
-#    conan profile detect -f &&\
-#    echo "[buildenv]" >> ${HOME}/.conan2/profiles/Linux-x86_64-clang-18 &&\
-#    echo "CC=/usr/bin/clang" >> ${HOME}/.conan2/profiles/Linux-x86_64-clang-18 &&\
-#    echo "CXX=/usr/bin/clang++" >> ${HOME}/.conan2/profiles/Linux-x86_64-clang-18 &&\
-#    echo "[settings]" >> ${HOME}/.conan2/profiles/Linux-x86_64-clang-18 &&\
-#    echo "arch=x86_64" >> ${HOME}/.conan2/profiles/Linux-x86_64-clang-18 &&\
-#    echo "build_type=Release" >> ${HOME}/.conan2/profiles/Linux-x86_64-clang-18 &&\
-#    echo "compiler=clang" >> ${HOME}/.conan2/profiles/Linux-x86_64-clang-18 &&\
-#    echo "compiler.cppstd=23" >> ${HOME}/.conan2/profiles/Linux-x86_64-clang-18 &&\
-#    echo "compiler.libcxx=libstdc++11" >> ${HOME}/.conan2/profiles/Linux-x86_64-clang-18 &&\
-#    echo "compiler.version=18" >> ${HOME}/.conan2/profiles/Linux-x86_64-clang-18 &&\
-#    echo "os=Linux" >> ${HOME}/.conan2/profiles/Linux-x86_64-clang-18 &&\
-#    echo "[conf]" >> ${HOME}/.conan2/profiles/Linux-x86_64-clang-18 &&\
-#    echo "tools.cmake.cmaketoolchain:generator=Ninja" >> ${HOME}/.conan2/profiles/Linux-x86_64-clang-18
- 
-    
+WORKDIR /home/ubuntu
+ENV CONAN_CLANG_X86_PROFILE="/root/.conan2/profiles/"
+RUN python3 -m venv venv && source ./venv/bin/activate &&\
+    pip install conan &&\
+    conan profile detect -f &&\
+    echo "[buildenv]" >> ${CONAN_CLANG_X86_PROFILE} &&\
+    echo "CC=/usr/bin/clang" >> ${CONAN_CLANG_X86_PROFILE} &&\
+    echo "CXX=/usr/bin/clang++" >> ${CONAN_CLANG_X86_PROFILE} &&\
+    echo "[settings]" >> ${CONAN_CLANG_X86_PROFILE} &&\
+    echo "arch=x86_64" >> ${CONAN_CLANG_X86_PROFILE} &&\
+    echo "build_type=Release" >> ${CONAN_CLANG_X86_PROFILE} &&\
+    echo "compiler=clang" >> ${CONAN_CLANG_X86_PROFILE} &&\
+    echo "compiler.cppstd=20" >> ${CONAN_CLANG_X86_PROFILE} &&\
+    echo "compiler.libcxx=libstdc++11" >> ${CONAN_CLANG_X86_PROFILE} &&\
+    echo "compiler.version=18" >> ${CONAN_CLANG_X86_PROFILE} &&\
+    echo "os=Linux" >> ${CONAN_CLANG_X86_PROFILE} &&\
+    echo "[conf]" >> ${CONAN_CLANG_X86_PROFILE} &&\
+    echo "tools.cmake.cmaketoolchain:generator=Ninja" >> ${CONAN_CLANG_X86_PROFILE}
 
 # We'll be using compression - zlib
-WORKDIR /home/ubuntu
 RUN mkdir -p /usr/local/include &&\
     mkdir -p /usr/local/lib &&\
     cd /home/ubuntu &&\
@@ -73,14 +72,14 @@ RUN mkdir -p /usr/local/include &&\
 # I don't like how ubuntu installs boost - I get everything but I really
 # don't need everything
 RUN cd /home/ubuntu &&\
-    wget -q https://archives.boost.io/release/1.88.0/source/boost_1_88_0.tar.gz &&\
-    tar -xf boost_1_88_0.tar.gz &&\
-    rm boost_1_88_0.tar.gz &&\
-    cd boost_1_88_0 &&\
+    wget -q https://archives.boost.io/release/1.89.0/source/boost_1_89_0.tar.gz &&\
+    tar -xf boost_1_89_0.tar.gz &&\
+    rm boost_1_89_0.tar.gz &&\
+    cd boost_1_89_0 &&\
     ./bootstrap.sh --with-toolset=clang &&\
     ./b2 install --prefix=/usr/local --with-headers --with-program_options &&\
     cd /home/ubuntu &&\
-    rm -rf boost_1_88_0
+    rm -rf boost_1_89_0
 
 # libmseed, libslink, libdali, slinktool, spdlog, catch2
 WORKDIR /home/ubuntu

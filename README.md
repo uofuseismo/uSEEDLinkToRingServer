@@ -42,3 +42,5 @@ Release versions of packages (could set to Debug or other cmake build types)
     cmake --preset conan-release -DUSE_TBB=ON -DWITH_CONAN=ON
     cmake --build --preset conan-release
     ctest --preset conan-release
+    cmake --install conanBuild/build/Release
+
