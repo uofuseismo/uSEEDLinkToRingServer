@@ -212,7 +212,10 @@ void SEEDLinkClientOptions::addStreamSelector(
             mySelector.getStation() == selector.getStation() &&
             mySelector.getSelector() == selector.getSelector())
         {
-            throw std::invalid_argument("Duplicate selector");
+            throw std::invalid_argument("Duplicate selector for "
+                                      + mySelector.getNetwork() + " "
+                                      + mySelector.getStation() + " "
+                                      + mySelector.getSelector());
         }
     }
     pImpl->mSelectors.push_back(selector);
