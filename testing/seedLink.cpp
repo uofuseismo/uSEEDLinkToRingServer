@@ -21,7 +21,7 @@ TEST_CASE("USEEDLinkToRingServer::StreamSelector", "[streamSelector]")
     SECTION("No location code")
     {   
         selector.setSelector(channel, USR::StreamSelector::Type::Data);
-        REQUIRE(selector.getSelector() == "??HH?.D");
+        REQUIRE(selector.getSelector() == "HH?.D");
     }   
     SECTION("Location code")
     {   
@@ -35,6 +35,22 @@ TEST_CASE("USEEDLinkToRingServer::StreamSelector", "[streamSelector]")
         REQUIRE(streamSelector.getNetwork() == "UU");
         REQUIRE(streamSelector.getStation() == "BHU");
         REQUIRE(streamSelector.getSelector() == "01HH?.D");
+    }
+    SECTION("From String Location Code No Data Type")
+    {
+        auto streamSelector
+           = USR::StreamSelector::fromString(" UU eLu  eH? 20  ");
+        REQUIRE(streamSelector.getNetwork() == "UU");
+        REQUIRE(streamSelector.getStation() == "ELU");
+        REQUIRE(streamSelector.getSelector() == "20EH?.*");
+    }   
+    SECTION("From String No Location Code")
+    {
+        auto streamSelector
+           = USR::StreamSelector::fromString(" UU bhu  hH?  d ");
+        REQUIRE(streamSelector.getNetwork() == "UU");
+        REQUIRE(streamSelector.getStation() == "BHU");
+        REQUIRE(streamSelector.getSelector() == "HH?.D");
     }
 }
 

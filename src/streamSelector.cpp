@@ -9,6 +9,24 @@
 
 using namespace USEEDLinkToRingServer;
 
+namespace
+{
+StreamSelector::Type getDataType(std::vector<std::string> &thisSelector)
+{
+    auto dataType = StreamSelector::Type::All;
+    boost::algorithm::trim(thisSelector.back());
+    if (thisSelector.back() == "D" || thisSelector.back() == "d")
+    {
+        dataType = StreamSelector::Type::Data;
+    }
+    else if (thisSelector.back() == "A" || thisSelector.back() == "a")
+    {
+        dataType  = StreamSelector::Type::All;
+    }
+    return dataType;
+}
+}
+
 class StreamSelector::StreamSelectorImpl
 {
 public:
@@ -17,6 +35,7 @@ public:
     std::string mChannel;
     std::string mLocationCode;
     StreamSelector::Type mType{StreamSelector::Type::All};
+    bool mNoLocationCode{false};
 };
 
 /// Constructor
@@ -113,6 +132,7 @@ void StreamSelector::setSelector(
     std::transform(pImpl->mChannel.begin(), pImpl->mChannel.end(),
                    pImpl->mChannel.begin(), ::toupper);
     pImpl->mLocationCode.clear();
+    pImpl->mNoLocationCode = true;
     pImpl->mType = type;
 }
 
@@ -125,6 +145,7 @@ void StreamSelector::setSelector(
     std::transform(pImpl->mChannel.begin(), pImpl->mChannel.end(),
                    pImpl->mChannel.begin(), ::toupper);
     pImpl->mLocationCode = locationCode;
+    pImpl->mNoLocationCode = false;
     pImpl->mType = type;
 }
 
@@ -142,6 +163,7 @@ std::string StreamSelector::getSelector() const noexcept
         if (pImpl->mLocationCode.empty())
         {
             locationChannel = "??";
+            if (pImpl->mNoLocationCode){locationChannel = "";}
         }
         else
         {
@@ -164,7 +186,7 @@ std::string StreamSelector::getSelector() const noexcept
         }
         else
         {
-            selector = locationChannel + pImpl->mChannel + ".*";
+            selector = locationChannel + ".*";
         }
     }
     else if (pImpl->mType == StreamSelector::Type::Data)
@@ -295,32 +317,39 @@ StreamSelector StreamSelector::fromString(
     // Add channel + location code + data type
     std::string channel{"*"};
     std::string locationCode{"??"};
-    if (splitSelector.size() > 2) 
+    if (thisSelector.size() > 2) 
     {
         channel = thisSelector[2];
         boost::algorithm::trim(channel);
     }
-    if (splitSelector.size() > 3) 
-    {
-        locationCode = thisSelector[3];
-        boost::algorithm::trim(locationCode);
-    }
-    // Data type
+    // Definitely a location code
     auto dataType = StreamSelector::Type::All;
     if (thisSelector.size() > 4) 
     {
-        boost::algorithm::trim(thisSelector.at(4));
-        if (thisSelector.at(4) == "D" || thisSelector.at(4) == "d")
-        {
-            dataType = StreamSelector::Type::Data;
-        }
-        else if (thisSelector.at(4) == "A" || thisSelector.at(4) == "a") 
-        {
-            dataType  = StreamSelector::Type::All;
-        }
-        // TODO other data types
+        locationCode = thisSelector[3];
+        boost::algorithm::trim(locationCode);
+        dataType = ::getDataType(thisSelector);
+        selector.setSelector(channel, locationCode, dataType);
     }
-    selector.setSelector(channel, locationCode, dataType);
+    else if (thisSelector.size() == 4)
+    {
+        locationCode = thisSelector[3];
+        // Last thing specified was location code 
+        if (locationCode.size() > 1)
+        {
+            selector.setSelector(channel, locationCode, dataType);
+        }
+        else
+        {
+            // Last thing likely data type
+            dataType = ::getDataType(thisSelector);
+            selector.setSelector(channel, dataType);
+        }
+    }
+    else
+    {
+        selector.setSelector(channel, locationCode, dataType);
+    }
     return selector;
 }
 
