@@ -54,7 +54,7 @@ TEST_CASE("USEEDLinkToRingServer::StreamSelector", "[streamSelector]")
     }
 }
 
-TEST_CASE("USEEDLinkToRingServer::StreamSelector", "[clienOptions]")
+TEST_CASE("USEEDLinkToRingServer::StreamSelector", "[clientOptions]")
 {
     namespace USR = USEEDLinkToRingServer;
     USR::SEEDLinkClientOptions clientOptions;
