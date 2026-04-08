@@ -8,7 +8,7 @@ class uSEEDLinkToRingServerConan(ConanFile):
    license = "MIT"
    description = "Propagates files from a SEEDLink client to a RingServer in the same pod in the UUSS Kubernetes environment."
    url = "https://github.com/uofuseismo/uSEEDLinkToRingServer"
-   topics = ("uSEEDLinkToRingServer")
+   #topics = ("uSEEDLinkToRingServer")
    settings = "os", "compiler", "build_type", "arch"
    options = {"use_tbb": [True, False], "build_tests" : [True, False], "with_conan" : [True, False]}
    default_options = {"hwloc/*:shared": "True",

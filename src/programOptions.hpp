@@ -13,6 +13,16 @@
 namespace 
 {
 
+struct OTelGRPCMetricsOptions
+{
+    std::string url{"localhost"};
+    uint16_t port{4317};
+    std::chrono::milliseconds exportInterval{std::chrono::seconds{30}};
+    std::chrono::milliseconds exportTimeOut{500};
+    std::filesystem::path certificatePath; // Path to the cert file
+};
+
+
 struct OTelHTTPMetricsOptions
 {
     std::string url{"localhost:4318"};
@@ -32,6 +42,7 @@ struct ProgramOptions
 {
     std::string applicationName{APPLICATION_NAME};
     ::OTelHTTPMetricsOptions otelHTTPMetricsOptions;
+    ::OTelGRPCMetricsOptions otelGRPCMetricsOptions;
     ::OTelHTTPLogOptions otelHTTPLogOptions;
     //std::string prometheusURL{"localhost:9020"}; 
     std::vector<USEEDLinkToRingServer::DataLinkClientOptions>
@@ -44,6 +55,8 @@ struct ProgramOptions
     int verbosity{3};
     bool exportLogs{false};
     bool exportMetrics{false};
+    bool exportMetricsWithHTTP{true};
+    bool exportLogsWithHTTP{true};
 };
 
 ::ProgramOptions parseIniFile(const std::filesystem::path &iniFile);

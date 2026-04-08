@@ -48,6 +48,7 @@ find_package(libmseed REQUIRED)
 if (${WITH_CONAN})
    message("Will use Conan OTLP exporters")
    find_package(opentelemetry-cpp CONFIG COMPONENTS exporter_otlp_grpc REQUIRED)
+   find_package(gRPC CONFIG REQUIRED)
 else()
    find_package(opentelemetry-cpp CONFIG COMPONENTS exporters_otlp_http REQUIRED)
 endif()
@@ -156,6 +157,7 @@ target_link_libraries(uSEEDLinkToRingServer
 if (${WITH_CONAN})
    target_link_libraries(uSEEDLinkToRingServer
                          PRIVATE opentelemetry-cpp::opentelemetry-cpp
+                                 opentelemetry-cpp::proto_grpc
                                  opentelemetry-cpp::exporter_otlp_grpc
                                  opentelemetry-cpp::exporter_otlp_grpc_client
                                  opentelemetry-cpp::exporter_otlp_grpc_metrics
@@ -166,6 +168,7 @@ if (${WITH_CONAN})
                                  opentelemetry-cpp::metrics
                                  opentelemetry-cpp::common
                                  opentelemetry-cpp::api)
+   target_compile_definitions(uSEEDLinkToRingServer PUBLIC WITH_OTLP_GRPC)
 else()
    target_link_libraries(uSEEDLinkToRingServer
                          PRIVATE opentelemetry-cpp::otlp_http_log_record_exporter

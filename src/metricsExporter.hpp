@@ -8,6 +8,10 @@
 #include <opentelemetry/exporters/otlp/otlp_http.h>
 #include <opentelemetry/exporters/otlp/otlp_http_metric_exporter_factory.h>
 #include <opentelemetry/exporters/otlp/otlp_http_metric_exporter_options.h>
+#ifdef WITH_OTLP_GRPC
+#include <opentelemetry/exporters/otlp/otlp_grpc_metric_exporter_factory.h>
+#include <opentelemetry/exporters/otlp/otlp_grpc_metric_exporter_options.h>
+#endif
 #include <opentelemetry/sdk/metrics/export/periodic_exporting_metric_reader_factory.h>
 #include <opentelemetry/sdk/metrics/export/periodic_exporting_metric_reader_options.h>
 #include <opentelemetry/sdk/metrics/meter_context.h>
@@ -23,7 +27,59 @@ namespace
 
 bool metricsInitialized{false};
 
-void initializeMetrics(const ::ProgramOptions &programOptions)
+#ifdef WITH_OTLP_GRPC
+void initializeGRPCMetrics(const ::ProgramOptions &programOptions)
+{
+    if (!programOptions.exportMetrics){return;}
+    namespace otel = opentelemetry;
+    otel::exporter::otlp::OtlpGrpcMetricExporterOptions exporterOptions;
+    exporterOptions.endpoint
+        = programOptions.otelGRPCMetricsOptions.url + ":"
+        + std::to_string(programOptions.otelGRPCMetricsOptions.port);
+    exporterOptions.use_ssl_credentials = false;
+    if (!programOptions.otelGRPCMetricsOptions.certificatePath.empty())
+    {
+        exporterOptions.use_ssl_credentials = true;
+        exporterOptions.ssl_credentials_cacert_path
+           = programOptions.otelGRPCMetricsOptions.certificatePath;
+    }
+    auto exporter
+        = otel::exporter::otlp::OtlpGrpcMetricExporterFactory::Create(
+             exporterOptions);
+
+    // Initialize and set the global MeterProvider
+    otel::sdk::metrics::PeriodicExportingMetricReaderOptions readerOptions;
+    readerOptions.export_interval_millis
+        = programOptions.otelGRPCMetricsOptions.exportInterval;
+    readerOptions.export_timeout_millis
+        = programOptions.otelGRPCMetricsOptions.exportTimeOut;
+
+
+    auto reader
+        = otel::sdk::metrics::PeriodicExportingMetricReaderFactory::Create(
+             std::move(exporter),
+             readerOptions);
+
+    auto context = otel::sdk::metrics::MeterContextFactory::Create();
+    context->AddMetricReader(std::move(reader));
+
+    auto metricsProvider
+        = otel::sdk::metrics::MeterProviderFactory::Create(
+             std::move(context));
+    std::shared_ptr<otel::metrics::MeterProvider>
+        provider(std::move(metricsProvider));
+
+    otel::sdk::metrics::Provider::SetMeterProvider(provider);
+    metricsInitialized = true;
+}
+#else
+void initializeGRPCMetrics(const ::ProgramOptions &)
+{
+    throw std::runtime_error("Not compiled with gRPC metrics exporter");
+}
+#endif
+
+void initializeHTTPMetrics(const ::ProgramOptions &programOptions)
 {
     if (!programOptions.exportMetrics){return;}
     namespace otel = opentelemetry;
@@ -60,6 +116,18 @@ void initializeMetrics(const ::ProgramOptions &programOptions)
 
     otel::sdk::metrics::Provider::SetMeterProvider(provider);
     metricsInitialized = true;
+}
+
+void initializeMetrics(const ::ProgramOptions &programOptions)
+{
+    if (programOptions.exportMetricsWithHTTP)
+    {
+        ::initializeHTTPMetrics(programOptions);
+    }
+    else
+    {
+        ::initializeGRPCMetrics(programOptions);
+    }
 }
 
 /*
