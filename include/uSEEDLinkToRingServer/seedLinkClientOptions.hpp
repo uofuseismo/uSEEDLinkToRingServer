@@ -52,7 +52,7 @@ public:
     /// @brief Sets the host of the SEEDLink server.
     /// @param[in] host  The address of the SEEDLink server.
     void setHost(const std::string &host);
-    /// @result The hots address of the SEEDLink server.  By default this is
+    /// @result The host address of the SEEDLink server.  By default this is
     ///         rtserve.iris.washington.edu
     [[nodiscard]] std::string getHost() const noexcept;
 

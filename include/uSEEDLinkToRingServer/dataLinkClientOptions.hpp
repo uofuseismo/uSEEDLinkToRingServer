@@ -46,16 +46,16 @@ public:
     /// @{
 
     /// @brief Sets the host of the RingServer - e.g., localhost.
-    /// @param[in] hots  The host address of the RingServer.
+    /// @param[in] host  The host address of the RingServer.
     void setHost(const std::string &host);
     /// @result The host address of the RingServer server.
     /// @note By default this is localhost.
     [[nodiscard]] std::string getHost() const;
 
     /// @brief Sets the client identifier.
-    void setIdentifier(const std::string &identifier);
+    //void setIdentifier(const std::string &identifier);
     /// @result The client identiifer.
-    [[nodiscard]] std::string getIdentifier() const;
+    //[[nodiscard]] std::string getIdentifier() const;
 
     /// @brief Sets the port number of the RingServer.
     /// @param[in] port  The port of the server.
@@ -80,7 +80,7 @@ public:
     /// @param[in] recordSize  The MiniSEED record size to write.
     /// @throws std::invalid_argument if not positive or exceeds 512.
     void setMiniSEEDRecordSize(int recordSize);
-    /// @result The SEED record size in bytes.  By default this is 512.
+    /// @result The MiniSEED record size in bytes.  By default this is 512.
     [[nodiscard]] int getMiniSEEDRecordSize() const noexcept;
 
     /// @brief This will enable writing MSEED3 packets.
@@ -95,6 +95,21 @@ public:
     void setName(const std::string &name);
     /// @result The name of the DALI client.
     [[nodiscard]] std::string getName() const noexcept;
+
+    /// @brief Enables the flushing of packets.  This will result in
+    ///        packets always being written.
+    void enablePacketFlushing() noexcept;
+    /// @brief Disables packet flushing.  If a time series does not
+    ///        completely fill a packet (see miniSEEDRecordSize) then
+    ///        the remaining data may not be packed.
+    /// @note It is strongly recommended to not disable packet flushing.
+    void disablePacketFlushing() noexcept;
+    /// @result True means packets will be flushed prior to writing (i.e.,
+    ///         the smallest possible miniSEED packets will be written to
+    ///         the ringserver).
+    /// @note True is the default.
+    [[nodiscard]] bool flushPackets() const noexcept;
+    
     /// @}
 
     /// @name Destructors

@@ -118,7 +118,8 @@ TEST_CASE("USEEDLinkToRingServer::Packet", "[packet]")
         std::vector<DataLinkPacket> dlPackets;
         constexpr USEEDLinkToRingServer::Compression
             compression{USEEDLinkToRingServer::Compression::None};
-        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, logger));
+        constexpr bool flushPackets{true};
+        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, flushPackets, logger));
         REQUIRE(std::abs(computeSumOfSamples(packet) - 2) < 1.e-14);
         REQUIRE(std::abs(computeSumOfSamplesSquared(packet) - 30) < 1.e-14);
     }
@@ -140,7 +141,8 @@ TEST_CASE("USEEDLinkToRingServer::Packet", "[packet]")
         std::vector<DataLinkPacket> dlPackets;
         constexpr USEEDLinkToRingServer::Compression
             compression{USEEDLinkToRingServer::Compression::None};
-        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, logger));
+        constexpr bool flushPackets{false};
+        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, flushPackets, logger));
         REQUIRE(std::abs(computeSumOfSamples(packet) - 2) < 1.e-14);
         REQUIRE(std::abs(computeSumOfSamplesSquared(packet) - 30) < 1.e-14);
     }
@@ -162,7 +164,8 @@ TEST_CASE("USEEDLinkToRingServer::Packet", "[packet]")
         std::vector<DataLinkPacket> dlPackets;
         constexpr USEEDLinkToRingServer::Compression
             compression{USEEDLinkToRingServer::Compression::None};
-        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, logger));
+        constexpr bool flushPackets{true};
+        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, flushPackets, logger));
         REQUIRE(std::abs(computeSumOfSamples(packet) - 2) < 1.e-14);
         REQUIRE(std::abs(computeSumOfSamplesSquared(packet) - 30) < 1.e-14);
     }
@@ -184,7 +187,8 @@ TEST_CASE("USEEDLinkToRingServer::Packet", "[packet]")
         std::vector<DataLinkPacket> dlPackets;
         constexpr USEEDLinkToRingServer::Compression
             compression{USEEDLinkToRingServer::Compression::None};
-        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, logger));
+        constexpr bool flushPackets{true};
+        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, flushPackets, logger));
     }   
 
     SECTION("Big Record")
@@ -195,6 +199,12 @@ TEST_CASE("USEEDLinkToRingServer::Packet", "[packet]")
         std::vector<DataLinkPacket> dlPackets;
         constexpr USEEDLinkToRingServer::Compression
             compression{USEEDLinkToRingServer::Compression::None};
-        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, logger));
+        constexpr bool flushPackets{true};
+        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 4096, true, compression, flushPackets, logger));
+        // Note, 1024 ints is 4096 bytes of data.  The max packet
+        // size is 4096. There is also a header.  This means
+        // we'll get 2 packets. 
+        REQUIRE(dlPackets.size() == 2);
+        REQUIRE(dlPackets.at(0).data.size() == 4096);
     }
 }

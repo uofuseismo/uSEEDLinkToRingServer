@@ -13,6 +13,7 @@ public:
     int mMiniSEEDRecordSize{512};
     uint16_t mPort{16000};
     bool mWriteMiniSEED3{false};
+    bool mFlushPackets{true};
 };
 
 /// Constructor
@@ -159,3 +160,18 @@ int DataLinkClientOptions::getMaximumInternalQueueSize() const noexcept
     return pImpl->mMaximumInternalQueueSize;
 }
 
+/// Packet flushing
+void DataLinkClientOptions::enablePacketFlushing() noexcept
+{
+    pImpl->mFlushPackets = true;
+}
+
+void DataLinkClientOptions::disablePacketFlushing() noexcept
+{
+    pImpl->mFlushPackets = false;
+}
+
+bool DataLinkClientOptions::flushPackets() const noexcept
+{
+    return pImpl->mFlushPackets;
+}

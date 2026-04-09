@@ -456,6 +456,7 @@ USEEDLinkToRingServer::toDataLinkPackets(
     const int maxRecordLength,
     const bool useMiniSEED3,
     const Compression compression,
+    const bool flushPackets,
     std::shared_ptr<spdlog::logger> &logger)
 {
     std::vector<DataLinkPacket> outputPackets;
@@ -541,7 +542,70 @@ USEEDLinkToRingServer::toDataLinkPackets(
         }
     }
     msRecord.samplecnt = msRecord.numsamples;
-    // Package it
+    // Flushing packets is a dangerous activity.  Basically we need to exceed
+    // some amount based on the max record size.
+    if (!flushPackets)
+    {
+        uint32_t writeToBufferFlags{0};
+        writeToBufferFlags |= MSF_MAINTAINMSTL; // Do not modify while packing
+        if (!useMiniSEED3){writeToBufferFlags |= MSF_PACKVER2;}
+        int64_t packedSamplesCount{0};
+        constexpr int8_t verbose{0};
+        auto nRecordsCreated = msr3_pack(&msRecord,
+                                         &msRecordHandler,
+                                         &outputPackets,
+                                         &packedSamplesCount,
+                                         writeToBufferFlags,
+                                         verbose);
+        bool isOkay{true};
+        if (nRecordsCreated < 1 && isOkay)
+        {
+            isOkay = false;
+            if (logger)
+            {
+                SPDLOG_LOGGER_WARN(logger,
+                    "Failed to create any packets - failing through");
+            }
+        }
+        if (nRecordsCreated != static_cast<int> (outputPackets.size())
+            && isOkay)
+        {
+            isOkay = false;
+            if (logger)
+            {
+                SPDLOG_LOGGER_WARN(logger,
+                   "Inconsistent records created/output packets created - failing through");
+            }
+        }
+        if (msRecord.numsamples > 0 &&
+            packedSamplesCount < msRecord.numsamples && isOkay)
+        {
+            if (logger)
+            {
+                SPDLOG_LOGGER_WARN(logger,
+                                   "Its possible not all samples were packed");
+            }
+        }
+        if (isOkay)
+        {
+            for (const auto &packet : outputPackets)
+            {
+                constexpr size_t maxDataLinkSize{512};
+                if (packet.data.size() > maxDataLinkSize)
+                {
+                    isOkay = false;
+                    if (logger)
+                    {
+                        SPDLOG_LOGGER_WARN(logger,
+                          "Output packet too big - repacking");
+                    }
+                }
+            }
+        }
+        if (isOkay){return outputPackets;}
+        outputPackets.clear();
+    }
+    // Fail through 
     uint32_t writeToBufferFlags{0};
     writeToBufferFlags |= MSF_FLUSHDATA;
     writeToBufferFlags |= MSF_MAINTAINMSTL; // Do not modify while packing
@@ -559,14 +623,19 @@ USEEDLinkToRingServer::toDataLinkPackets(
     {
         throw std::runtime_error("Failed to pack miniSEED");
     }
-    if (nRecordsCreated != static_cast<int> (outputPackets.size()))
+    if (logger)
     {
-        SPDLOG_LOGGER_WARN(logger,
-            "Inconsistent records created/output packets created");
-    }
-    if (msRecord.numsamples > 0 && packedSamplesCount < msRecord.numsamples)
-    { 
-        SPDLOG_LOGGER_WARN(logger, "Its possible not all samples were packed");
+        if (nRecordsCreated != static_cast<int> (outputPackets.size()))
+        {
+            SPDLOG_LOGGER_WARN(logger,
+                "Inconsistent records created/output packets created");
+        }
+        if (msRecord.numsamples > 0 &&
+            packedSamplesCount < msRecord.numsamples)
+        { 
+            SPDLOG_LOGGER_WARN(logger,
+                               "Its possible not all samples were packed");
+        }
     }
     return outputPackets;
 }

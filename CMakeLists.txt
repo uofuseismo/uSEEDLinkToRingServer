@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(uSEEDLinkToRingServer VERSION 0.0.5 LANGUAGES C CXX)
+project(uSEEDLinkToRingServer VERSION 0.0.6 LANGUAGES C CXX)
 enable_testing()
 
 option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
@@ -189,6 +189,7 @@ if (PROJECT_IS_TOP_LEVEL AND ${BUILD_TESTS})
    add_executable(unitTests
                   testing/packet.cpp
                   testing/seedLink.cpp
+                  testing/dataLink.cpp
                   )
    set_target_properties(unitTests PROPERTIES
                          CXX_STANDARD 23

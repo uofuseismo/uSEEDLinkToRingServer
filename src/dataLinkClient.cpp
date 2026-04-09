@@ -50,6 +50,7 @@ public:
             mLogger = spdlog::stdout_color_mt("DataLinkConsole");
         }
         mWriteMiniSEED3 = mOptions.writeMiniSEED3();
+        mFlushPackets = mOptions.flushPackets();
         mMaxMiniSEEDRecordSize = mOptions.getMiniSEEDRecordSize();
         mMaximumInternalQueueSize = mOptions.getMaximumInternalQueueSize();
 #ifdef USE_TBB
@@ -215,6 +216,7 @@ public:
                                             mMaxMiniSEEDRecordSize,
                                             mWriteMiniSEED3,
                                             mCompression,
+                                            mFlushPackets,
                                             mLogger);
                 }
                 catch (const std::exception &e)
@@ -366,6 +368,7 @@ public:
     std::atomic<bool> mKeepRunning{true};
     Compression mCompression{Compression::None};
     bool mWriteMiniSEED3{true};
+    bool mFlushPackets{true};
     bool mTerminateRequested{false};
 };
 

@@ -646,6 +646,29 @@ getDataLinkOptions(const boost::property_tree::ptree &propertyTree,
                                          defaultDataLinkWriterName);
     dataLinkClientOptions.setName(dataLinkWriterName);
 
+    auto flushPackets 
+        = propertyTree.get<bool> (sectionName + ".flushPackets",
+                                  dataLinkClientOptions.flushPackets());
+    if (flushPackets)
+    {
+        dataLinkClientOptions.enablePacketFlushing();
+    }
+    else
+    {
+        dataLinkClientOptions.disablePacketFlushing();
+    }
+
+    auto miniSEEDRecordSize
+        = propertyTree.get<int> (sectionName + ".miniSEEDRecordSize",
+                                 dataLinkClientOptions.getMiniSEEDRecordSize());
+    if (miniSEEDRecordSize < 1 || miniSEEDRecordSize > 512)
+    {
+        throw std::invalid_argument("miniSEEDRecordSize "
+            + std::to_string(miniSEEDRecordSize)
+            + " must be between 1 and 512");
+    }
+    dataLinkClientOptions.setMiniSEEDRecordSize(miniSEEDRecordSize);
+
     return dataLinkClientOptions;
 }
 
@@ -975,7 +998,7 @@ std::string getOTelCollectorURL(boost::property_tree::ptree &propertyTree,
         auto dataLinkWriterName = options.applicationName + "-DALIWriter";
         dataLinkClientOptions.push_back
         (
-           getDataLinkOptions(propertyTree, "DataLink", dataLinkWriterName)
+           ::getDataLinkOptions(propertyTree, "DataLink", dataLinkWriterName)
         );
     }
     else

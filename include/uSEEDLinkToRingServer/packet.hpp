@@ -204,6 +204,7 @@ enum class Compression
                        int maxRecordLength,
                        bool useMiniSEED3,
                        Compression compression,
+                       bool flushPackets,
                        std::shared_ptr<spdlog::logger> &logger);
 
 }
