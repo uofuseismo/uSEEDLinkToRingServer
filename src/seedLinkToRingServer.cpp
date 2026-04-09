@@ -730,11 +730,13 @@ getSEEDLinkOptions(const boost::property_tree::ptree &propertyTree,
             {
                 if (!std::filesystem::create_directories(parentPath))
                 {
-                    spdlog::warn("Could not create parent path "
-                               + parentPath.string());
+                    throw std::runtime_error("Could not create parent path "
+                                           + parentPath.string());
                 }
             }
         }
+        clientOptions.setStateFile(stateFile);
+
         auto deleteStateFileOnStart = clientOptions.deleteStateFileOnStart();
         deleteStateFileOnStart
             = propertyTree.get<bool> (clientName + ".deleteStateFileOnStart",
@@ -760,6 +762,19 @@ getSEEDLinkOptions(const boost::property_tree::ptree &propertyTree,
         {
             clientOptions.disableDeleteStateFileOnStop();
         }   
+
+        auto stateFileUpdateInterval
+            = clientOptions.getStateFileUpdateInterval();
+        stateFileUpdateInterval
+            = propertyTree.get<int> (clientName + ".stateFileUpdateInterval",
+                                     stateFileUpdateInterval);
+        if (stateFileUpdateInterval < 0)
+        {
+            throw std::invalid_argument(clientName
+                 + ".stateFileUpdateInterval "
+                 + std::to_string(stateFileUpdateInterval)
+                 + " must be non-negative");
+        }
     }
 
     constexpr int maxSelectors{32768};

@@ -392,7 +392,9 @@ public:
         // Recover state
         if (mUseStateFile)
         {
-            if (!sl_recoverstate(mSEEDLinkConnection, mStateFile.c_str()))
+            auto returnCode
+                = sl_recoverstate(mSEEDLinkConnection, mStateFile.c_str());
+            if (returnCode ==-1)
             {
                  throw std::runtime_error("Failed to recover state");
             }

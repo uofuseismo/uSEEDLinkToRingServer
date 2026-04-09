@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(uSEEDLinkToRingServer VERSION 0.0.6 LANGUAGES C CXX)
+project(uSEEDLinkToRingServer VERSION 0.0.7 LANGUAGES C CXX)
 enable_testing()
 
 option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
