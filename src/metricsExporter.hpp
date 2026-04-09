@@ -72,11 +72,6 @@ void initializeGRPCMetrics(const ::ProgramOptions &programOptions)
     otel::sdk::metrics::Provider::SetMeterProvider(provider);
     metricsInitialized = true;
 }
-#else
-void initializeGRPCMetrics(const ::ProgramOptions &)
-{
-    throw std::runtime_error("Not compiled with gRPC metrics exporter");
-}
 #endif
 
 void initializeHTTPMetrics(const ::ProgramOptions &programOptions)
@@ -126,7 +121,11 @@ void initializeMetrics(const ::ProgramOptions &programOptions)
     }
     else
     {
+#ifdef WITH_OTLP_GRPC
         ::initializeGRPCMetrics(programOptions);
+#else
+        throw std::runtime_error("Recompile WITH_OTLP_GRPC and conan");
+#endif
     }
 }
 

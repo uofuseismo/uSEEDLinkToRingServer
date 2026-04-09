@@ -22,6 +22,13 @@ struct OTelGRPCMetricsOptions
     std::filesystem::path certificatePath; // Path to the cert file
 };
 
+struct OTelGRPCLogOptions
+{
+    std::string url{"localhost"};
+    uint16_t port{4317};
+    //std::chrono::milliseconds exportTimeOut{500};
+    std::filesystem::path certificatePath; // Path to the cert file
+};
 
 struct OTelHTTPMetricsOptions
 {
@@ -44,6 +51,7 @@ struct ProgramOptions
     ::OTelHTTPMetricsOptions otelHTTPMetricsOptions;
     ::OTelGRPCMetricsOptions otelGRPCMetricsOptions;
     ::OTelHTTPLogOptions otelHTTPLogOptions;
+    ::OTelGRPCLogOptions otelGRPCLogOptions;
     //std::string prometheusURL{"localhost:9020"}; 
     std::vector<USEEDLinkToRingServer::DataLinkClientOptions>
         dataLinkClientOptions;
