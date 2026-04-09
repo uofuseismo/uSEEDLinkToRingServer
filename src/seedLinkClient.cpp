@@ -396,7 +396,8 @@ public:
                 = sl_recoverstate(mSEEDLinkConnection, mStateFile.c_str());
             if (returnCode ==-1)
             {
-                 throw std::runtime_error("Failed to recover state");
+                throw std::runtime_error("Failed to recover state from file "
+                                       + mStateFile);
             }
         }
         // Now start scraping
