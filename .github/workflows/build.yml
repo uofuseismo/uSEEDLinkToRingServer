@@ -100,8 +100,10 @@ jobs:
 
       - name: Copy libslink/libmseed.a
         run: |
-          sudo cp ${HOME}/third-party/lib/*.a /usr/local/lib
-          sudo cp ${HOME}/third-party/include/*.h /usr/local/include
+          sudo mkdir -p /usr/local/lib/
+          sudo mkdir -p /usr/local/include/
+          sudo cp ${HOME}/third-party/lib/*.a /usr/local/lib/
+          sudo cp ${HOME}/third-party/include/*.h /usr/local/include/
 
       - name: Install Conan dependencies
         working-directory: ${{github.workspace}}
