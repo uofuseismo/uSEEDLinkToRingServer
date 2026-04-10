@@ -103,7 +103,7 @@ jobs:
         run: |
           sudo mkdir -p /usr/local/lib/
           sudo mkdir -p /usr/local/include/
-          sudo cp ${HOME}/third-party/lib/cmake* /usr/local/lib/
+          sudo cp -r ${HOME}/third-party/lib/cmake* /usr/local/lib/
           sudo cp ${HOME}/third-party/lib/*.a /usr/local/lib/
           sudo cp ${HOME}/third-party/include/*.h /usr/local/include/
 
