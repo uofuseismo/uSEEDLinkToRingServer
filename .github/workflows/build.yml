@@ -71,6 +71,7 @@ jobs:
           path: |
              ${HOME}/third-party/include/libmseed.h
              ${HOME}/third-party/include/libslink.h
+             ${HOME}/third-party/lib/cmake/libmseed/*
              ${HOME}/third-party/lib/libmseed.a
              ${HOME}/third-party/lib/libslink.a
           key: ${{ runner.os }}-build-${{ env.cache-name }}
@@ -102,16 +103,20 @@ jobs:
         run: |
           sudo mkdir -p /usr/local/lib/
           sudo mkdir -p /usr/local/include/
+          sudo cp ${HOME}/third-party/lib/cmake* /usr/local/lib/
           sudo cp ${HOME}/third-party/lib/*.a /usr/local/lib/
           sudo cp ${HOME}/third-party/include/*.h /usr/local/include/
 
-      - name: Install Conan dependencies
-        working-directory: ${{github.workspace}}
-        run: "conan install . --build=missing -s:a build_type=${{env.BUILD_TYPE}} -s:a compiler=clang -s:a compiler.version=20 -s:a compiler.cppstd=20 -s:a compiler.libcxx=libstdc++11 --output-folder ."
+      #- name: Install Conan dependencies
+      #  working-directory: ${{github.workspace}}
+      #  run: "conan install . --build=missing -s:a build_type=${{env.BUILD_TYPE}} -s:a compiler=clang -s:a compiler.version=20 -s:a compiler.cppstd=20 -s:a compiler.libcxx=libstdc++11 --output-folder ."
 
       - name: Configure preset and build
         working-directory: ${{github.workspace}}
         run: |
+           ls /usr/local/lib/
+           ls /usr/local/lib/cmake
+           ls /usr/local/include
            cmake --preset conan-release -DWITH_CONAN=ON -DBUILD_CONTAINER=ON -DUSE_TBB=ON
            cmake --build --preset conan-release
            cp include/${PROJECT_NAME}/version.hpp build
