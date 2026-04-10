@@ -1,0 +1,138 @@
+name: uSEEDLinkToRingServer Application
+run-name: Pipeline for branch ${{ github.ref_name }}
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  PROJECT_NAME: uSEEDLinkToRingServer
+  BUILD_TYPE: Release
+  CXX: /usr/bin/clang++
+  CC: /usr/bin/clang
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    name: Build on ${{ matrix.distro }} ${{ matrix.arch }}
+    #strategy:
+    #  fail-fast: false
+    #  matrix:
+    #    BUILD_TARGET: [Release]
+
+    steps:
+      - uses: actions/checkout@v6
+      # Trick next step - python checkout wants a requirements.txt file
+      - run: touch requirements.txt
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+      - run: pip install conan
+
+      - name: Conan cache setup
+        uses: actions/cache@v5
+        id: cache-conan      
+        env:
+          cache-name: cache-conan-modules
+        with:
+          path: ~/.conan2
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('./conanfile.py') }}
+
+      # Cache hit
+      - if: ${{ steps.cache-conan.outputs.cache-hit == 'true' }}
+        name: Cache hit - list the existing Conan modules
+        continue-on-error: true
+        run: |
+          ls ~/.conan2/
+          ls ~/.conan2/p
+      
+      - name: Create default profile with Ninja generator
+        run: | 
+          conan profile detect -f
+          echo "" >> ~/.conan2/profiles/default
+          echo "[conf]" >> ~/.conan2/profiles/default
+          echo "tools.cmake.cmaketoolchain:generator=Ninja" >> ~/.conan2/profiles/default
+          tail -n 50 ${HOME}/.conan2/profiles/default
+
+      - name: Prepare environment
+        uses: ./.github/actions/prepare-environment
+
+      - name: Libmseed/Libslink cache setup
+        uses: actions/cache@v5
+        id: cache-libmseed-libslink      
+        env:
+          cache-name: cache-libmseed-libslink-modules
+        with:
+          path: |
+             ${HOME}/third-party/include/libmseed.h
+             ${HOME}/third-party/include/libslink.h
+             ${HOME}/third-party/lib/libmseed.a
+             ${HOME}/third-party/lib/libslink.a
+          key: ${{ runner.os }}-build-${{ env.cache-name }}
+      - if: ${{ steps.cache-libmseed-libslink.outputs.cache-hit != 'true' }}
+        name: Build libmseed and libslink
+        run: |
+          mkdir -p ${HOME}/third-party
+          wget https://github.com/EarthScope/libmseed/archive/refs/tags/v3.3.0.tar.gz
+          tar -xf v3.3.0.tar.gz
+          rm v3.3.0.tar.gz
+          cd libmseed-3.3.0
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DBUILD_STATIC_LIBS=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=${HOME}/third-party
+          cmake --build build
+          sudo cmake --install build
+          cd ../
+          rm -rf libmseed-3.3.0 
+          wget https://github.com/EarthScope/libslink/archive/refs/tags/v4.2.0.tar.gz
+          tar -xf v4.2.0.tar.gz
+          rm v4.2.0.tar.gz
+          cd libslink-4.2.0
+          CC=clang make
+          cp libslink.a ${HOME}/third-party/lib/
+          cp libslink.h ${HOME}/third-party/include/
+          cd ../
+          rm -rf libslink-4.2.0
+
+      - name: Copy libslink/libmseed.a
+        run: |
+          sudo cp ${HOME}/third-party/lib/*.a /usr/local/lib
+          sudo cp ${HOME}/third-party/lib/*.h /usr/local/include
+
+      - name: Install Conan dependencies
+        working-directory: ${{github.workspace}}
+        run: "conan install . --build=missing -s:a build_type=${{env.BUILD_TYPE}} -s:a compiler=clang -s:a compiler.version=20 -s:a compiler.cppstd=20 -s:a compiler.libcxx=libstdc++11 --output-folder ."
+
+      - name: Configure preset and build
+        working-directory: ${{github.workspace}}
+        run: |
+           cmake --preset conan-release -DWITH_CONAN=ON -DBUILD_CONTAINER=ON -DUSE_TBB=ON
+           cmake --build --preset conan-release
+           cp include/${PROJECT_NAME}/version.hpp build
+           cp CMakeUserPresets.json build
+
+      - name: Upload build directory
+        uses: ./.github/actions/upload-build-directory
+
+  test:
+    runs-on: ubuntu-24.04
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Prepare test environment
+        uses: ./.github/actions/prepare-environment
+
+      - name: Download build directory
+        uses: ./.github/actions/download-build-directory
+
+      - name: Run unit tests for release
+        working-directory: ${{github.workspace}}
+        run: |
+          mv build/version.hpp include/${PROJECT_NAME}/
+          mv build/CMakeUserPresets.json ./ 
+          ctest --preset conan-release
+
+
