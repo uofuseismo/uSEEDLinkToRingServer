@@ -142,7 +142,7 @@ if (${WITH_CONAN})
                                  opentelemetry-cpp::metrics
                                  opentelemetry-cpp::common
                                  opentelemetry-cpp::api)
-   target_compile_definitions(uSEEDLinkToRingServer PUBLIC WITH_OTLP_GRPC)
+   target_compile_definitions(libuSEEDLinkToRingServer PUBLIC WITH_OTLP_GRPC)
 else()
    target_link_libraries(libuSEEDLinkToRingServer
                          PRIVATE opentelemetry-cpp::otlp_http_log_record_exporter
