@@ -130,6 +130,7 @@ else()
 endif() 
 target_include_directories(libuSEEDLinkToRingServer
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/src>
+                           PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
                            PUBLIC  $<INSTALL_INTERFACE:include>)
 
