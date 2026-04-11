@@ -129,11 +129,11 @@ else()
    target_link_libraries(libuSEEDLinkToRingServer PRIVATE concurrentqueue)
 endif() 
 target_include_directories(libuSEEDLinkToRingServer
-                           PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/src>
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
-                           PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-                           PUBLIC  $<INSTALL_INTERFACE:include>)
-
+                           PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib>
+                           PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+                           PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+                           PUBLIC  $<INSTALL_INTERFACE:>)
 add_executable(uSEEDLinkToRingServer
                src/seedLinkToRingServer.cpp
                )
