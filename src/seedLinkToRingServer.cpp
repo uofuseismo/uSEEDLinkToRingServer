@@ -541,7 +541,7 @@ int main(int argc, char *argv[])
     try
     {
         SPDLOG_LOGGER_INFO(logger,
-                           "Starting seedLinkToRingServer processes...");
+                           "Starting uSEEDLinkToRingServer processes...");
         process->start();
         process->handleMainThread();
         if (programOptions.exportMetrics){::cleanupMetrics();}
@@ -550,7 +550,7 @@ int main(int argc, char *argv[])
     catch (const std::exception &e)
     {
         SPDLOG_LOGGER_CRITICAL(logger,
-            "seedLinkToRingServer processes failed with {}",
+            "uSEEDLinkToRingServer processes failed with {}",
             std::string {e.what()});
         if (programOptions.exportMetrics){::cleanupMetrics();}
         if (programOptions.exportLogs){::cleanupLogger();}
@@ -584,10 +584,10 @@ std::pair<std::string, bool> parseCommandLineOptions(int argc, char **argv)
 {
     std::string iniFile;
     boost::program_options::options_description desc(R"""(
-The seedLinkToRingServer scrapes all from a SEEDLink import then forwards
+The uSEEDLinkToRingServer scrapes all from a SEEDLink import then forwards
 those packets to RingServer(s) via DataLink.  Example usage:
 
-    seedLinkToRingServer --ini=slinkToRing.ini
+    uSEEDLinkToRingServer --ini=slinkToRing.ini
 
 Allowed options)""");
     desc.add_options()
