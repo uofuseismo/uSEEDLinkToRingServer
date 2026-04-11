@@ -71,12 +71,14 @@ jobs:
           path: |
              ${HOME}/third-party/include/libmseed.h
              ${HOME}/third-party/include/libslink.h
+             ${HOME}/third-party/include/libdali.h
              ${HOME}/third-party/lib/cmake/libmseed/*
              ${HOME}/third-party/lib/libmseed.a
              ${HOME}/third-party/lib/libslink.a
+             ${HOME}/third-party/lib/libdali.a
           key: ${{ runner.os }}-build-${{ env.cache-name }}
       - if: ${{ steps.cache-libmseed-libslink.outputs.cache-hit != 'true' }}
-        name: Build libmseed and libslink
+        name: Build libmseed, libdali, and libslink
         run: |
           mkdir -p ${HOME}/third-party
           wget https://github.com/EarthScope/libmseed/archive/refs/tags/v3.3.0.tar.gz
@@ -98,6 +100,14 @@ jobs:
           cp libslink.h ${HOME}/third-party/include/
           cd ../
           rm -rf libslink-4.2.0
+          wget https://github.com/EarthScope/libdali/archive/refs/tags/v1.8.1.tar.gz
+          tar -xf v1.8.1.tar.gz
+          rm v1.8.1.tar.gz
+          cd libdali-1.8.1
+          CC=clang make
+          mv libdali.a ${HOME}/third-party/lib/
+          mv libdali.h ${HOME}/third-party/include/
+
 
       - name: Copy libslink/libmseed.a
         run: |
