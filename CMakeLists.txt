@@ -128,6 +128,26 @@ if (${USE_TBB})
 else()
    target_link_libraries(libuSEEDLinkToRingServer PRIVATE concurrentqueue)
 endif() 
+if (${WITH_CONAN})
+   target_link_libraries(libuSEEDLinkToRingServer
+                         PRIVATE opentelemetry-cpp::opentelemetry-cpp
+                                 opentelemetry-cpp::proto_grpc
+                                 opentelemetry-cpp::exporter_otlp_grpc
+                                 opentelemetry-cpp::exporter_otlp_grpc_client
+                                 opentelemetry-cpp::exporter_otlp_grpc_metrics
+                                 opentelemetry-cpp::exporter_otlp_http 
+                                 opentelemetry-cpp::exporter_otlp_http_client
+                                 opentelemetry-cpp::exporter_otlp_http_metric
+                                 opentelemetry-cpp::exporter_otlp_http_log
+                                 opentelemetry-cpp::metrics
+                                 opentelemetry-cpp::common
+                                 opentelemetry-cpp::api)
+   target_compile_definitions(uSEEDLinkToRingServer PUBLIC WITH_OTLP_GRPC)
+else()
+   target_link_libraries(uSEEDLinkToRingServer
+                         PRIVATE opentelemetry-cpp::otlp_http_log_record_exporter
+                                 opentelemetry-cpp::otlp_http_metric_exporter)
+endif()
 target_include_directories(libuSEEDLinkToRingServer
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib>
