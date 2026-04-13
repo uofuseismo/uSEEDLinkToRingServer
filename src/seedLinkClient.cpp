@@ -1,3 +1,4 @@
+#include <iostream>
 #include <libslink.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -162,23 +163,33 @@ public:
         stop();
         disconnect();
     }
-    /// Terminate the SEED link client connection
+    /// Terminate the SEEDLink client connection
     void disconnect()
     {   
         if (mSEEDLinkConnection != nullptr)
         {
             if (mSEEDLinkConnection->link != -1)
             {
-                SPDLOG_LOGGER_DEBUG(mLogger, "Disconnecting SEEDLink...");
+                if (mLogger)
+                {
+                    SPDLOG_LOGGER_DEBUG(mLogger, "Disconnecting SEEDLink...");
+                }
                 sl_disconnect(mSEEDLinkConnection);
             }
             if (mUseStateFile)
             {
-                SPDLOG_LOGGER_INFO(mLogger,
-                                  "Saving state prior to disconnect");
+                if (mLogger)
+                {
+                    SPDLOG_LOGGER_INFO(mLogger,
+                                      "Saving state prior to disconnect");
+                }
                 sl_savestate(mSEEDLinkConnection, mStateFile.c_str());
             }
-            SPDLOG_LOGGER_DEBUG(mLogger, "Freeing SEEDLink structure...");
+            if (mLogger)
+            {
+                SPDLOG_LOGGER_DEBUG(mLogger,
+                                    "Freeing SEEDLink structure...");
+            }
             sl_freeslcd(mSEEDLinkConnection);
             mSEEDLinkConnection = nullptr;
         }
@@ -195,7 +206,7 @@ public:
     /// Starts the service
     [[nodiscard]] std::future<void> start()
     {
-        stop(); // Ensure module is stopped
+        //stop(); // Ensure module is stopped
         if (!mInitialized)
         {
             throw std::runtime_error("SEEDLink client not initialized");

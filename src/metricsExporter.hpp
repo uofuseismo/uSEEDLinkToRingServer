@@ -34,8 +34,7 @@ void initializeGRPCMetrics(const ::ProgramOptions &programOptions)
     namespace otel = opentelemetry;
     otel::exporter::otlp::OtlpGrpcMetricExporterOptions exporterOptions;
     exporterOptions.endpoint
-        = programOptions.otelGRPCMetricsOptions.url + ":"
-        + std::to_string(programOptions.otelGRPCMetricsOptions.port);
+        = programOptions.otelGRPCMetricsOptions.url;
     exporterOptions.use_ssl_credentials = false;
     if (!programOptions.otelGRPCMetricsOptions.certificatePath.empty())
     {

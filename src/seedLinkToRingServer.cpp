@@ -84,21 +84,17 @@ public:
                   (dataLinkClientOptions, mLogger);
             mDataLinkClients.push_back(std::move(dataLinkClient));
         }
-        /*
-        for (auto &seedLinkWriterOptions : mOptions.seedLinkWriterOptions)
-        {
-            auto seedLinkWriter
-                = std::make_unique<USEEDLinkToRingServer::SEEDLinkWriter>
-                   (seedLinkWriterOptions, mLogger);
-            mSEEDLinkWriters.push_back(std::move(seedLinkWriter));
-        }
-        */
+#ifndef NDEBUG
+        assert(!mDataLinkClients.empty());
+#endif
         mSEEDLinkClient
             = std::make_unique<USEEDLinkToRingServer::SEEDLinkClient>
               (mAddPacketCallbackFunction,
                mOptions.seedLinkClientOptions,
                mLogger);
-
+#ifndef NDEBUG
+        assert(mSEEDLinkClient != nullptr);
+#endif
     }
     /// Destructor
     ~Process()
@@ -108,7 +104,7 @@ public:
     /// Starts the processes
     void start()
     {
-        stop();
+        //stop();
         mKeepRunning = true;
         mMetricsThread = std::thread(&::Process::tabulateMetrics, this);
         // Start the writers
@@ -117,13 +113,6 @@ public:
         {
             mDataLinkClientFutures.push_back(dataLinkClient->start());
         }
-        /*
-        mSEEDLinkWriterFutures.clear();
-        for (auto &seedLinkWriter : mSEEDLinkWriters)
-        {
-            mSEEDLinkWriterFutures.push_back(seedLinkWriter->start());
-        }
-        */
         // Then the reader
         mSEEDLinkClientFuture = mSEEDLinkClient->start();
     }
@@ -133,32 +122,52 @@ public:
         mKeepRunning = false;
         if (mMetricsThread.joinable()){mMetricsThread.join();}
         // Stop acquiring and give writers a chance to clear 
-        if (mSEEDLinkClient){mSEEDLinkClient->stop();}
-        constexpr std::chrono::milliseconds pause{15};
+        if (mSEEDLinkClient)
+        {
+            SPDLOG_LOGGER_INFO(mLogger, "Terminating SEEDLink client");
+            mSEEDLinkClient->stop();
+            mSEEDLinkClient = nullptr;
+            // Give a minute to clear state file 
+            constexpr std::chrono::milliseconds pause{50};
+            std::this_thread::sleep_for(pause);
+        }
+        constexpr std::chrono::milliseconds pause{25};
         std::this_thread::sleep_for(pause); //std::chrono::milliseconds {15});
         // Stop the writers
         for (auto &dataLinkClient : mDataLinkClients)
         {
             if (dataLinkClient){dataLinkClient->stop();}
         }
-        /*
-        for (auto &seedLinkWriter : mSEEDLinkWriters)
-        {
-            if (seedLinkWriter){seedLinkWriter->stop();}
-        }
-        */
+        std::this_thread::sleep_for(pause);
         // Futures
-        if (mSEEDLinkClientFuture.valid()){mSEEDLinkClientFuture.get();}
+        if (mSEEDLinkClientFuture.valid())
+        {
+            try
+            {
+                mSEEDLinkClientFuture.get();
+            }
+            catch (const std::exception &e)
+            {
+                SPDLOG_LOGGER_CRITICAL(mLogger,
+                                       "Detected SEEDLink shutdown error: {}",
+                                       std::string {e.what()});
+            }
+        }
+        std::this_thread::sleep_for(pause);
         for (auto &dataLinkClientFuture : mDataLinkClientFutures)
         {
-            if (dataLinkClientFuture.valid()){dataLinkClientFuture.get();}
+            try
+            {
+                if (dataLinkClientFuture.valid()){dataLinkClientFuture.get();}
+            }
+            catch (const std::exception &e)
+            {
+                SPDLOG_LOGGER_CRITICAL(mLogger,
+                                       "Detected datalink shutdown error: {}",
+                                       std::string {e.what()});
+            } 
         }
-        /*
-        for (auto &seedLinkWriterFuture : mSEEDLinkWriterFutures)
-        {
-            if (seedLinkWriterFuture.valid()){seedLinkWriterFuture.get();}
-        }
-        */
+        std::this_thread::sleep_for(pause);
     }
     /// This callback enables the SEEDLink client to add packets to be processed
     void addPacketCallback(USEEDLinkToRingServer::Packet &&packet)
@@ -284,28 +293,6 @@ public:
                            std::string {e.what()});
                     }
                 }
-                /*
-                for (auto &seedLinkWriter : mSEEDLinkWriters)
-                {
-                    try
-                    {
-                        if (movePacket)
-                        {
-                            seedLinkWriter->enqueue(std::move(packet));
-                        }
-                        else
-                        {
-                            seedLinkWriter->enqueue(packet);
-                        }
-                    }
-                    catch (const std::exception &e)
-                    {
-                        SPDLOG_LOGGER_WARN(mLogger,
-                          "Failed to enqueue packet to SEEDLink for publishing because {}",
-                           std::string {e.what()});
-                    }
-                }
-                */
             }
             else
             {
@@ -350,26 +337,6 @@ public:
                                    std::string {e.what()});
             isOkay = false;
         }
-        /*
-        try
-        {
-            for (auto &seedLinkWriterFuture : mSEEDLinkWriterFutures)
-            {
-                auto status = seedLinkWriterFuture.wait_for(timeOut);
-                if (status == std::future_status::ready)
-                {
-                    seedLinkWriterFuture.get();
-                }
-            }
-        }
-        catch (const std::exception &e)
-        {
-            SPDLOG_LOGGER_CRITICAL(mLogger,
-                                   "Fatal error in SEEDLink export: {}",
-                                   std::string {e.what()});
-            isOkay = false;
-        }
-        */
         return isOkay;
     }
     void handleMainThread()
@@ -435,7 +402,6 @@ public:
     std::shared_ptr<spdlog::logger> mLogger{nullptr};    
     mutable std::future<void> mSEEDLinkClientFuture;
     mutable std::vector<std::future<void>> mDataLinkClientFutures{};
-    //mutable std::vector<std::future<void>> mSEEDLinkWriterFutures;
     mutable std::mutex mStopMutex;
 #ifdef USE_TBB
     oneapi::tbb::concurrent_bounded_queue
@@ -450,8 +416,6 @@ public:
     std::condition_variable mStopCondition;
     std::vector<std::unique_ptr<USEEDLinkToRingServer::DataLinkClient>>
         mDataLinkClients{};
-    //std::vector<std::unique_ptr<USEEDLinkToRingServer::SEEDLinkWriter>>
-    //    mSEEDLinkWriters;
     std::unique_ptr<USEEDLinkToRingServer::SEEDLinkClient> mSEEDLinkClient{nullptr};
     std::function<void(USEEDLinkToRingServer::Packet &&)>
         mAddPacketCallbackFunction
@@ -503,7 +467,6 @@ int main(int argc, char *argv[])
            overwrite);
 
     auto logger = ::initializeLogger(programOptions);
-    //::setVerbosityForSPDLOG(programOptions.verbosity, &*logger);
 
     // Setup metrics
     try
@@ -532,7 +495,9 @@ int main(int argc, char *argv[])
     } 
     catch (const std::exception &e)
     {
-        spdlog::critical(e.what());
+        SPDLOG_LOGGER_CRITICAL(logger,
+                               "Failed to create processs with {}",
+                               std::string {e.what()});
         ::cleanupMetrics();
         ::cleanupLogger();
         return EXIT_FAILURE;
@@ -544,8 +509,8 @@ int main(int argc, char *argv[])
                            "Starting uSEEDLinkToRingServer processes...");
         process->start();
         process->handleMainThread();
-        if (programOptions.exportMetrics){::cleanupMetrics();}
-        if (programOptions.exportLogs){::cleanupLogger();}
+        ::cleanupMetrics();
+        ::cleanupLogger();
     }
     catch (const std::exception &e)
     {
@@ -553,7 +518,7 @@ int main(int argc, char *argv[])
             "uSEEDLinkToRingServer processes failed with {}",
             std::string {e.what()});
         if (programOptions.exportMetrics){::cleanupMetrics();}
-        if (programOptions.exportLogs){::cleanupLogger();}
+        ::cleanupLogger();
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;

@@ -156,6 +156,7 @@ void cleanupLogger()
         std::shared_ptr<opentelemetry::logs::LoggerProvider> none;
         opentelemetry::logs::Provider::SetLoggerProvider(none);
     }
+    loggerProvider = nullptr;
 }
 
 }
