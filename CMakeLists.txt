@@ -85,7 +85,8 @@ set(LIBRARY_SRC
     src/streamIdentifier.cpp
     src/streamSelector.cpp
     src/otelSpdlogSink.cpp
-    src/version.cpp)
+    src/version.cpp
+    src/writerMetricsSingleton.cpp)
 if (BUILD_SHARED_LIBS)
    add_library(libuSEEDLinkToRingServer SHARED ${LIBRARY_SRC})
 else()
@@ -116,7 +117,8 @@ target_sources(libuSEEDLinkToRingServer
                   include/uSEEDLinkToRingServer/seedLinkClientOptions.hpp
                   include/uSEEDLinkToRingServer/streamIdentifier.hpp
                   include/uSEEDLinkToRingServer/streamSelector.hpp
-                  include/uSEEDLinkToRingServer/version.hpp)
+                  include/uSEEDLinkToRingServer/version.hpp
+                  include/uSEEDLinkToRingServer/writerMetricsSingleton.hpp)
 target_link_libraries(libuSEEDLinkToRingServer
                       PRIVATE mseed::mseed_static
                               spdlog::spdlog_header_only

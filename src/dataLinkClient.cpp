@@ -20,7 +20,8 @@
 #include "uSEEDLinkToRingServer/dataLinkClientOptions.hpp"
 #include "uSEEDLinkToRingServer/packet.hpp"
 #include "uSEEDLinkToRingServer/streamIdentifier.hpp"
-#include "writerMetrics.hpp"
+#include "uSEEDLinkToRingServer/writerMetricsSingleton.hpp"
+#include "getNow.hpp"
 
 using namespace USEEDLinkToRingServer;
 
@@ -234,11 +235,10 @@ public:
                                             mCompression,
                                             mFlushPackets,
                                             mLogger);
-                    MeasurementFetcher::mObservablePacketsWritten.fetch_add(1);
                 }
                 catch (const std::exception &e)
                 {
-                    MeasurementFetcher::mObservableInvalidPackets.fetch_add(1);
+                    mMetrics.incrementInvalidPacketsCounter();
                     SPDLOG_LOGGER_WARN(mLogger,
                                        "Failed to convert packet to mseed"); 
                     continue; 
@@ -255,8 +255,7 @@ public:
                 }
                 catch (const std::exception &e)
                 {
-                    MeasurementFetcher::mObservablePacketsWritten.fetch_add(1);
-                    MeasurementFetcher::mObservableInvalidPackets.fetch_add(1);
+                    mMetrics.incrementInvalidPacketsCounter();
                     SPDLOG_LOGGER_WARN(mLogger,
                                    "Failed to create stream name because {}",
                                     std::string {e.what()});
@@ -284,7 +283,7 @@ public:
                     if (returnCode < 0)
                     {
                         consecutiveWriteFailures = consecutiveWriteFailures + 1;
-                        MeasurementFetcher::mObservablePacketsFailedToWrite.fetch_add(1);
+                        mMetrics.incrementFailedPacketsSentCounter();
                         SPDLOG_LOGGER_WARN(mLogger,
                       "DataLink failed to write packet for {}.  Failed with {}",
                             streamIdentifier, returnCode);
@@ -299,8 +298,8 @@ public:
                     }
                     else
                     { 
+                        mMetrics.incrementPacketsWrittenCounter();
                         consecutiveWriteFailures = 0;
-                        MeasurementFetcher::mObservablePacketsWritten.fetch_add(1);
                     }
                 }
             }
@@ -329,7 +328,9 @@ public:
             while (mQueue->size_approx() >= mMaximumInternalQueueSize)
 #endif
             {
-                MeasurementFetcher::mObservablePacketsFailedToEnqueue.fetch_add(1);
+                mMetrics.incrementFailedPacketsFailedToEnqueueCounter();
+                //MeasurementFetcher::mObservablePacketsFailedToEnqueue.fetch_add(1);
+                //metrics.incrementFailedToEnqueuntCounter();
                 Packet workSpace;
 #ifdef USE_TBB
                 if (!mQueue.try_pop(workSpace))
@@ -349,7 +350,8 @@ public:
         if (!mQueue->try_enqueue(std::move(packet)))
 #endif
         {
-            MeasurementFetcher::mObservablePacketsFailedToEnqueue.fetch_add(1);
+            auto &writerMetrics = USEEDLinkToRingServer::WriterMetricsSingleton::getInstance(); 
+            writerMetrics.incrementFailedPacketsFailedToEnqueueCounter();
             SPDLOG_LOGGER_WARN(mLogger,
                "Failed to add packet to export queue - queue may be full");
         }
@@ -357,6 +359,10 @@ public:
 //private:
     DataLinkClientOptions mOptions;
     std::shared_ptr<spdlog::logger> mLogger{nullptr};
+    USEEDLinkToRingServer::WriterMetricsSingleton &mMetrics
+    {
+        USEEDLinkToRingServer::WriterMetricsSingleton::getInstance()
+    };
     std::mutex mConditionVariableMutex;
     std::mutex mMutex;
     std::condition_variable mConditionVariable;

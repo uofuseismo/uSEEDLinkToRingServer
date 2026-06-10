@@ -25,6 +25,7 @@
 #include "uSEEDLinkToRingServer/packet.hpp"
 #include "uSEEDLinkToRingServer/streamIdentifier.hpp"
 #include "uSEEDLinkToRingServer/streamSelector.hpp"
+#include "uSEEDLinkToRingServer/writerMetricsSingleton.hpp"
 #include "programOptions.hpp"
 #include "streamMetrics.hpp"
 #include "writerMetrics.hpp"
@@ -393,10 +394,11 @@ public:
 
         auto nReceived = sumTotalPacketsReceived();
         auto nReceivedReport = nReceived - mReceivedLastReport;
-        auto nWritten = MeasurementFetcher::mObservablePacketsWritten.load();
+        auto &writerMetrics = USEEDLinkToRingServer::WriterMetricsSingleton::getInstance();
+        auto nWritten = writerMetrics.getPacketsWrittenCount();
         auto nWrittenReport = nWritten - mWrittenLastReport;
         SPDLOG_LOGGER_INFO(mLogger,
-                          "Received packets {} from SEEDLink and sent {} packets to the ringserver since last report.",
+                          "Received {} packets from SEEDLink and sent {} packets to the ringserver since last report.",
                           nReceivedReport,
                           nWrittenReport);
         mReceivedLastReport = nReceived;
@@ -467,6 +469,8 @@ public:
 
 int main(int argc, char *argv[])
 {
+    USEEDLinkToRingServer::initializeWriterMetricsSingleton();
+
     // Get the ini file from the command line
     std::filesystem::path iniFile;
     try
