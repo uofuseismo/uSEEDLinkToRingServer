@@ -234,10 +234,10 @@ public:
                                             mCompression,
                                             mFlushPackets,
                                             mLogger);
+                    MeasurementFetcher::mObservablePacketsWritten.fetch_add(1);
                 }
                 catch (const std::exception &e)
                 {
-                    MeasurementFetcher::mObservablePacketsWritten.fetch_add(1);
                     MeasurementFetcher::mObservableInvalidPackets.fetch_add(1);
                     SPDLOG_LOGGER_WARN(mLogger,
                                        "Failed to convert packet to mseed"); 
