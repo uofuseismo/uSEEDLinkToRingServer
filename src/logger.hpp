@@ -22,6 +22,7 @@
 
 namespace
 {
+
 std::shared_ptr<opentelemetry::sdk::logs::LoggerProvider> loggerProvider{nullptr};
 
 void setVerbosityForSPDLOG(const int verbosity,
@@ -149,7 +150,7 @@ std::shared_ptr<spdlog::logger>
 
 void cleanupLogger()
 {
-    if (loggerProvider)
+    if (loggerProvider != nullptr)
     {
         loggerProvider->ForceFlush();
         loggerProvider.reset();

@@ -59,6 +59,7 @@ struct ProgramOptions
     //    seedLinkWriterOptions;
     USEEDLinkToRingServer::SEEDLinkClientOptions seedLinkClientOptions;
     std::string dataSource;
+    std::chrono::minutes printSummaryInterval{std::chrono::minutes {15}};
     int importQueueSize{8192};
     int verbosity{3};
     bool exportLogs{false};

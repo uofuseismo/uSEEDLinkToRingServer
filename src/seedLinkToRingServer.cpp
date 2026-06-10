@@ -27,6 +27,7 @@
 #include "uSEEDLinkToRingServer/streamSelector.hpp"
 #include "programOptions.hpp"
 #include "streamMetrics.hpp"
+#include "writerMetrics.hpp"
 #include "logger.hpp"
 #include "metricsExporter.hpp"
 
@@ -119,14 +120,13 @@ public:
     /// Stops the processes
     void stop()
     {
-        mKeepRunning = false;
+        mKeepRunning.store(false);
         if (mMetricsThread.joinable()){mMetricsThread.join();}
         // Stop acquiring and give writers a chance to clear 
         if (mSEEDLinkClient)
         {
             SPDLOG_LOGGER_INFO(mLogger, "Terminating SEEDLink client");
             mSEEDLinkClient->stop();
-            mSEEDLinkClient = nullptr;
             // Give a minute to clear state file 
             constexpr std::chrono::milliseconds pause{50};
             std::this_thread::sleep_for(pause);
@@ -168,6 +168,8 @@ public:
             } 
         }
         std::this_thread::sleep_for(pause);
+        mSEEDLinkClient = nullptr;
+        for (auto &dataLinkClient : mDataLinkClients){dataLinkClient = nullptr;}
     }
     /// This callback enables the SEEDLink client to add packets to be processed
     void addPacketCallback(USEEDLinkToRingServer::Packet &&packet)
@@ -361,6 +363,7 @@ public:
                     mStopRequested = true;
                     break;
                 }
+                printSummary();
                 std::unique_lock<std::mutex> lock(mStopMutex);
                 constexpr std::chrono::milliseconds waitFor{100};
                 mStopCondition.wait_for(lock,
@@ -378,6 +381,27 @@ public:
             stop(); 
         }
     }
+    /// Print some summary statistics to let people know we're alive
+    void printSummary()
+    {
+        if (mOptions.printSummaryInterval.count() <= 0){return;}
+        const auto now = 
+            std::chrono::duration_cast<std::chrono::seconds>
+            ((std::chrono::high_resolution_clock::now()).time_since_epoch());
+        if (now < mLastReport + mOptions.printSummaryInterval){return;}
+        mLastReport = now;
+
+        auto nReceived = sumTotalPacketsReceived();
+        auto nReceivedReport = nReceived - mReceivedLastReport;
+        auto nWritten = MeasurementFetcher::mObservablePacketsWritten.load();
+        auto nWrittenReport = nWritten - mWrittenLastReport;
+        SPDLOG_LOGGER_INFO(mLogger,
+                          "Received packets {} from SEEDLink and sent {} packets to the ringserver since last report.",
+                          nReceivedReport,
+                          nWrittenReport);
+        mReceivedLastReport = nReceived;
+        mWrittenLastReport = nWritten;
+    } 
     /// Handles sigterm and sigint
     static void signalHandler(const int )
     {   
@@ -427,6 +451,13 @@ public:
     std::atomic<uint64_t> mImportPacketsPopped{0};
     std::atomic<uint64_t> mImportPacketsFailedToEnqueue{0};
     std::atomic<bool> mKeepRunning{true};
+    std::chrono::seconds mLastReport
+    {   
+        std::chrono::duration_cast<std::chrono::seconds>
+        ((std::chrono::high_resolution_clock::now()).time_since_epoch())
+    };  
+    int64_t mReceivedLastReport{0};
+    int64_t mWrittenLastReport{0};
     int mImportQueueMaximumSize{DEFAULT_QUEUE_SIZE};
     bool mStopRequested{false};
 };
@@ -902,6 +933,15 @@ getOTelMetricsIntervalAndTimeOut(
     }
     options.verbosity
         = propertyTree.get<int> ("General.verbosity", options.verbosity);
+
+    auto summaryIntervalInMinutes
+        = static_cast<int> (options.printSummaryInterval.count());
+    summaryIntervalInMinutes
+        = propertyTree.get<int> ("General.printSummaryIntervalInMinutes",
+                                 summaryIntervalInMinutes);
+    options.printSummaryInterval 
+        = std::chrono::minutes {summaryIntervalInMinutes};
+
 
     // Metrics
     options.exportMetrics = false;

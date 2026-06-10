@@ -26,13 +26,23 @@ using namespace USEEDLinkToRingServer;
 
 namespace
 {
-static void spdlogHandler(const char *msg)
+/// Logger for datalink
+std::shared_ptr<spdlog::logger> mGlobalLogger{nullptr};
+void dataLinkToSPDLOG(const char *message)
 {
-    if (msg == nullptr){return;}
-    std::string message(msg);
-    spdlog::info(msg);
+    if (mGlobalLogger && message)
+    {   
+        SPDLOG_LOGGER_INFO(mGlobalLogger, "DataLink message: {}", message);
+    }
 }
 
+void dataLinkDiagnosticsToSPDLOG(const char *message)
+{
+    if (mGlobalLogger && message)
+    {   
+        SPDLOG_LOGGER_WARN(mGlobalLogger, "DataLink message: {}", message);
+    }   
+}
 }
 
 class DataLinkClient::DataLinkClientImpl
@@ -49,6 +59,7 @@ public:
         {
             mLogger = spdlog::stdout_color_mt("DataLinkConsole");
         }
+        mGlobalLogger = mLogger;
         mWriteMiniSEED3 = mOptions.writeMiniSEED3();
         mFlushPackets = mOptions.flushPackets();
         mMaxMiniSEEDRecordSize = mOptions.getMiniSEEDRecordSize();
@@ -67,6 +78,7 @@ public:
     {
         stop();
         destroyDataLinkClient();
+        mGlobalLogger = nullptr;
     }
     /// Creates the client
     void createClient()
@@ -79,6 +91,11 @@ public:
                                      clientNameCopy.data());
         mDataLinkClient->iotimeout = mTimeOut.count();
         mDataLinkClient->keepalive = mHeartbeatInterval.count();
+        void (*logPrint)(const char *)  = dataLinkToSPDLOG;
+        void (*diagPrint)(const char *) = dataLinkDiagnosticsToSPDLOG;
+        dl_loginit_r(mDataLinkClient, 3,
+                     logPrint, nullptr, diagPrint, nullptr);
+
     }
     /// Connect
     void connect()
@@ -127,7 +144,7 @@ public:
     /// Stop the publisher thread
     void stop()
     {
-        mKeepRunning.store(false);
+        mKeepRunning.store(false, std::memory_order_seq_cst);
         mTerminateRequested = true;
         mConditionVariable.notify_all();
     }
@@ -135,7 +152,7 @@ public:
     std::future<void> start()
     {
         stop();
-        mKeepRunning = true;
+        mKeepRunning.store(true, std::memory_order_seq_cst);
         mTerminateRequested = false;
         auto result = std::async(&DataLinkClientImpl::runWriter, this);
         return result;
@@ -143,7 +160,6 @@ public:
     /// Writes the packets
     void runWriter()
     {
-        //dl_loginit(3, &spdlogHandler, "", &spdlogHandler, ""); 
 #ifndef NDEBUG
         assert(mDataLinkClient != nullptr);
 #endif
@@ -152,7 +168,7 @@ public:
         constexpr std::chrono::seconds refreshMetricsInterval{60};
         std::chrono::microseconds lastRefresh{0};
         int consecutiveWriteFailures{0};
-        while (mKeepRunning)
+        while (mKeepRunning.load(std::memory_order_seq_cst))
         {
             auto now = ::getNow();
             if (now > lastRefresh + refreshMetricsInterval)
@@ -277,6 +293,8 @@ public:
                             SPDLOG_LOGGER_ERROR(mLogger,
                                "DataLink too many consecutive write failures - killing connection");
                             disconnect();
+                            throw std::runtime_error(
+                               "Too many consecutive write failures");
                         }
                     }
                     else
@@ -291,7 +309,7 @@ public:
                 std::this_thread::sleep_for(timeOut);
             }
         }
-        SPDLOG_LOGGER_INFO(mLogger, "Exiting");
+        SPDLOG_LOGGER_INFO(mLogger, "DataLink writer thread exiting");
     }
     /// Enqueues the packet
     void enqueue(Packet &&packet)
@@ -358,8 +376,8 @@ public:
         std::chrono::seconds {30},
         std::chrono::seconds {60}
     };
-    std::chrono::seconds mTimeOut{1};
-    std::chrono::seconds mHeartbeatInterval{5};
+    std::chrono::seconds mTimeOut{60};
+    std::chrono::seconds mHeartbeatInterval{5}; // I don't think this is used for writing
     int mMaxMiniSEEDRecordSize{512};
     int mMaximumInternalQueueSize{8192};
     //std::atomic<uint64_t> mPacketsFailedToEnqueue{0};

@@ -14,6 +14,24 @@ using namespace USEEDLinkToRingServer;
 namespace
 {
 
+/// Logger for seedlink
+std::shared_ptr<spdlog::logger> mGlobalLogger{nullptr};
+void seedLinkToSPDLOG(const char *message)
+{
+    if (mGlobalLogger && message)
+    {
+        SPDLOG_LOGGER_INFO(mGlobalLogger, "SEEDLink message: {}", message);
+    }
+}
+
+void seedLinkDiagnosticsToSPDLOG(const char *message)
+{
+    if (mGlobalLogger && message)
+    {
+        SPDLOG_LOGGER_DEBUG(mGlobalLogger, "SEEDLink message: {}", message);
+    }
+}
+
 /// @brief Unpacks a miniSEED record.
 [[nodiscard]]
 std::vector<Packet>
@@ -155,6 +173,7 @@ public:
         {
             mLogger = spdlog::stdout_color_mt("SEEDLinkConsole");
         }
+        mGlobalLogger = mLogger;
         initialize(options);
     }        
     /// Destructor
@@ -162,6 +181,7 @@ public:
     {
         stop();
         disconnect();
+        mGlobalLogger = nullptr;
     }
     /// Terminate the SEEDLink client connection
     void disconnect()
@@ -221,14 +241,14 @@ public:
     void setRunning(const bool running)
     {
         // Terminate the session
-        if (!running && mKeepRunning)
+        if (!running && mKeepRunning.load(std::memory_order_seq_cst))
         {
             SPDLOG_LOGGER_DEBUG(mLogger, "Issuing terminate command");
             terminate();
         }
         // Tell the scraping thread to quit if it hasn't already given up
         // because it received a terminate request
-        mKeepRunning = running;
+        mKeepRunning.store(running, std::memory_order_seq_cst);
     }
     /// Stops the service
     void stop()
@@ -249,6 +269,12 @@ public:
         {                   
             throw std::runtime_error("Failed to create client handle");
         }
+        // Setup a better logger
+        void (*logPrint)(const char *)  = seedLinkToSPDLOG;
+        void (*diagPrint)(const char *) = seedLinkDiagnosticsToSPDLOG;
+        sl_loginit_r(mSEEDLinkConnection, 2,
+                     logPrint, nullptr,
+                     diagPrint, nullptr);
         // Set the connection string            
         auto host = options.getHost();
         auto port = options.getPort();
@@ -420,7 +446,7 @@ public:
         int updateStateFile{1};
         SPDLOG_LOGGER_DEBUG(mLogger,
                             "Thread entering SEEDLink polling loop...");
-        while (mKeepRunning)
+        while (mKeepRunning.load(std::memory_order_seq_cst))
         {
             // Attempt to collect data but then immediately return.
             auto returnValue = sl_collect(mSEEDLinkConnection,
@@ -524,7 +550,7 @@ public:
                 }
             }
         }
-        if (mKeepRunning)
+        if (mKeepRunning.load())
         {
             SPDLOG_LOGGER_CRITICAL(mLogger,
                                    "Premature end of SEEDLink import");

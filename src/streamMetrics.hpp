@@ -771,5 +771,17 @@ public:
     std::chrono::seconds mSampleInterval{60};
 };
 
+int64_t sumTotalPacketsReceived()
+{
+    int64_t result{0};
+    auto keys = mObservableTotalPacketsReceived.keys();
+    for (const auto &key : keys)
+    {
+        auto value = mObservableTotalPacketsReceived[key];
+        if (value){result = result + *value;}
+    }
+    return result;
+}
+
 }
 #endif
