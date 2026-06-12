@@ -25,6 +25,7 @@
 #include "uSEEDLinkToRingServer/packet.hpp"
 #include "uSEEDLinkToRingServer/streamIdentifier.hpp"
 #include "uSEEDLinkToRingServer/streamSelector.hpp"
+#include "uSEEDLinkToRingServer/version.hpp"
 #include "uSEEDLinkToRingServer/writerMetricsSingleton.hpp"
 #include "programOptions.hpp"
 #include "streamMetrics.hpp"
@@ -502,7 +503,8 @@ int main(int argc, char *argv[])
            overwrite);
 
     auto logger = ::initializeLogger(programOptions);
-
+    SPDLOG_LOGGER_INFO(logger, "Running program version {}",
+                       USEEDLinkToRingServer::Version::getVersionWithTag());
     // Setup metrics
     try
     {

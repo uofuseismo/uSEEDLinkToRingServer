@@ -35,3 +35,22 @@ std::string Version::getVersion() noexcept
     return version;
 }
 
+std::string Version::getTag() noexcept
+{
+    std::string tag{uSEEDLinkToRingServer_GITTAG};
+    return tag;
+}
+
+std::string Version::getVersionWithTag() noexcept
+{
+    auto tag = Version::getTag();
+    if (tag.empty())
+    {   
+        return Version::getVersion();
+    }   
+    else
+    {   
+        return Version::getVersion() + "-" + tag;
+    }   
+}
+

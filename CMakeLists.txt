@@ -12,9 +12,6 @@ option(USE_CLANG_TIDY "Build using clang-tidy" OFF)
 include(GenerateExportHeader)
 include(FetchContent)
 
-configure_file(${CMAKE_SOURCE_DIR}/src/version.hpp.in
-               ${CMAKE_SOURCE_DIR}/include/uSEEDLinkToRingServer/version.hpp)
-
 if (NOT ${USE_TBB}) 
    message("Will use moodycamel concurrentqueue")
    FetchContent_Declare(
@@ -63,6 +60,24 @@ endif()
 find_package(Threads REQUIRED)
 find_package(SEEDLink REQUIRED)
 find_package(DataLink REQUIRED)
+
+find_package(Git)
+if (Git_FOUND)
+   execute_process(
+     COMMAND ${GIT_EXECUTABLE} --no-pager log -n 1 HEAD "--pretty=format:%h"
+     OUTPUT_VARIABLE uSEEDLinkToRingServer_GITTAG
+     RESULT_VARIABLE gitresult
+     ERROR_QUIET
+     OUTPUT_STRIP_TRAILING_WHITESPACE
+   )
+   if (gitresult EQUAL 0)
+      message(STATUS "Last Git commit: ${uSEEDLinkToRingServer_GITTAG}")
+   endif()
+else()
+   set(uSEEDLinkToRingServer_GITTAG "") 
+endif()
+configure_file(${CMAKE_SOURCE_DIR}/src/version.hpp.in
+               ${CMAKE_SOURCE_DIR}/include/uSEEDLinkToRingServer/version.hpp)
 
 if (PROJECT_IS_TOP_LEVEL AND ${USE_CLANG_TIDY})
    find_program(CLANG_TIDY_EXECUTABLE NAMES "clang-tidy")

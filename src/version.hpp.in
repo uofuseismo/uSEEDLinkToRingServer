@@ -1,9 +1,10 @@
 #ifndef USEED_LINK_IMPORT_VERSION_HPP
 #define USEED_LINK_IMPORT_VERSION_HPP
 #include <string>
-#define uSEEDLinkToRingServer_MAJOR @uSEEDLinkToRingServer_VERSION_MAJOR@
-#define uSEEDLinkToRingServer_MINOR @uSEEDLinkToRingServer_VERSION_MINOR@
-#define uSEEDLinkToRingServer_PATCH @uSEEDLinkToRingServer_VERSION_PATCH@
+#define uSEEDLinkToRingServer_MAJOR  @uSEEDLinkToRingServer_VERSION_MAJOR@
+#define uSEEDLinkToRingServer_MINOR  @uSEEDLinkToRingServer_VERSION_MINOR@
+#define uSEEDLinkToRingServer_PATCH  @uSEEDLinkToRingServer_VERSION_PATCH@
+#define uSEEDLinkToRingServer_GITTAG "@uSEEDLinkToRingServer_GITTAG@"
 #define uSEEDLinkToRingServer_VERSION "@PROJECT_VERSION@"
 namespace USEEDLinkToRingServer
 {
@@ -21,6 +22,10 @@ public:
     [[nodiscard]] static int getPatch() noexcept;
     /// @result The full version number as a string, e.g., "1.2.3".
     [[nodiscard]] static std::string getVersion() noexcept;
+    /// @result The full version number as a string with the tag, e.g., "1.2.3-abc123".
+    [[nodiscard]] static std::string getVersionWithTag() noexcept;
+    /// @result The git tag.
+    [[nodiscard]] static std::string getTag() noexcept;
     /// @brief Determines if the version is greater than or equal to
     ///        the current (major, minor, patch).
     /// @param[in] major  The major version number.
