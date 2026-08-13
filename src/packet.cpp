@@ -29,12 +29,15 @@ void msRecordHandler(char *record, int recordLength, void *buffer)
                                  &miniSEEDRecord,
                                  flags,
                                  verbose);
-    int64_t startTime{0};
-    int64_t endTime{0};
+    // Start/end time are in nanoseconds
+    std::chrono::microseconds startTime{0};
+    std::chrono::microseconds endTime{0};
     if (returnCode == MS_NOERROR && miniSEEDRecord)
     {
-        startTime = miniSEEDRecord->starttime;
-        endTime = msr3_endtime(miniSEEDRecord);
+        std::chrono::nanoseconds startTimeNanoS{miniSEEDRecord->starttime};
+        std::chrono::nanoseconds endTimeNanoS{msr3_endtime(miniSEEDRecord)};
+        startTime = std::chrono::duration_cast<std::chrono::microseconds> (startTimeNanoS);
+        endTime = std::chrono::duration_cast<std::chrono::microseconds> (endTimeNanoS);
     }
     if (miniSEEDRecord){msr3_free(&miniSEEDRecord);}
     if (MS_NOERROR)
@@ -45,6 +48,7 @@ void msRecordHandler(char *record, int recordLength, void *buffer)
     std::string nextRecord(record, recordLength); //record + recordLength);
     auto outputPackets
         = reinterpret_cast<std::vector<DataLinkPacket> *> (buffer);
+    // Want these in miccroseconds
     DataLinkPacket packet
     {
        std::move(nextRecord),

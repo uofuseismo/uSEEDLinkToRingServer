@@ -122,6 +122,7 @@ TEST_CASE("USEEDLinkToRingServer::Packet", "[packet]")
         REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, flushPackets, logger));
         REQUIRE(std::abs(computeSumOfSamples(packet) - 2) < 1.e-14);
         REQUIRE(std::abs(computeSumOfSamplesSquared(packet) - 30) < 1.e-14);
+        REQUIRE(dlPackets.at(0).startTime == std::chrono::duration_cast<std::chrono::microseconds> (startTime));
     }
 
     SECTION("double")
@@ -142,9 +143,10 @@ TEST_CASE("USEEDLinkToRingServer::Packet", "[packet]")
         constexpr USEEDLinkToRingServer::Compression
             compression{USEEDLinkToRingServer::Compression::None};
         constexpr bool flushPackets{false};
-        REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, flushPackets, logger));
+        dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, flushPackets, logger);
         REQUIRE(std::abs(computeSumOfSamples(packet) - 2) < 1.e-14);
         REQUIRE(std::abs(computeSumOfSamplesSquared(packet) - 30) < 1.e-14);
+        REQUIRE(dlPackets.at(0).startTime == std::chrono::duration_cast<std::chrono::microseconds> (startTime));
     }
 
     SECTION("float")
@@ -168,6 +170,7 @@ TEST_CASE("USEEDLinkToRingServer::Packet", "[packet]")
         REQUIRE_NOTHROW(dlPackets = USEEDLinkToRingServer::toDataLinkPackets(packet, 512, true, compression, flushPackets, logger));
         REQUIRE(std::abs(computeSumOfSamples(packet) - 2) < 1.e-14);
         REQUIRE(std::abs(computeSumOfSamplesSquared(packet) - 30) < 1.e-14);
+        REQUIRE(dlPackets.at(0).startTime == std::chrono::duration_cast<std::chrono::microseconds> (startTime));
     }
 
     SECTION("text")

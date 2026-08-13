@@ -778,6 +778,18 @@ getSEEDLinkOptions(const boost::property_tree::ptree &propertyTree,
                  + " must be non-negative");
         }
     }
+ 
+    auto pingOnStartUp
+        = propertyTree.get<bool> (clientName + ".pingOnStartUp",
+                                  clientOptions.pingOnStartUp());
+    if (pingOnStartUp)
+    {
+        clientOptions.enablePingOnStartUp();
+    }
+    else
+    {
+        clientOptions.disablePingOnStartUp();
+    }
 
     constexpr int maxSelectors{32768};
     for (int iSelector = 1; iSelector <= maxSelectors; ++iSelector)

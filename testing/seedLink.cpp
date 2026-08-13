@@ -67,6 +67,7 @@ TEST_CASE("USEEDLinkToRingServer::StreamSelector", "[clientOptions]")
         REQUIRE(clientOptions.deleteStateFileOnStart() == false);
         REQUIRE(clientOptions.deleteStateFileOnStop() == false);
         REQUIRE(clientOptions.getStreamSelectors().empty() == true);
+        REQUIRE(clientOptions.pingOnStartUp() == true);
     }
 
     SECTION("Options")
@@ -100,6 +101,7 @@ TEST_CASE("USEEDLinkToRingServer::StreamSelector", "[clientOptions]")
         clientOptions.setNetworkTimeOut(networkTimeOut);
         clientOptions.enableDeleteStateFileOnStart();
         clientOptions.enableDeleteStateFileOnStop();
+        clientOptions.disablePingOnStartUp();
         for (const auto &s : selectors)
         {
             clientOptions.addStreamSelector(s);
@@ -110,6 +112,7 @@ TEST_CASE("USEEDLinkToRingServer::StreamSelector", "[clientOptions]")
         REQUIRE(clientOptions.getNetworkTimeOut() == networkTimeOut);
         REQUIRE(clientOptions.deleteStateFileOnStart() == true);
         REQUIRE(clientOptions.deleteStateFileOnStop() == true);
+        REQUIRE(clientOptions.pingOnStartUp() == false);
         auto selectorsBack = clientOptions.getStreamSelectors();
         REQUIRE(selectorsBack.size() == 2);
         bool okay{true};

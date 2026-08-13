@@ -124,6 +124,15 @@ public:
     void addStreamSelector(const StreamSelector &selector);
     /// @result The stream selectors. 
     [[nodiscard]] std::vector<StreamSelector> getStreamSelectors() const noexcept;
+
+    /// @brief Enable a ping on startup - this will show some SEEDLink Ringserver
+    ///        info.
+    void enablePingOnStartUp() noexcept;
+    /// @brief Disable ping on startup.
+    void disablePingOnStartUp() noexcept;
+    /// @result True indicates the SEEDLink client will ping the ringserver
+    ///         on startup.
+    [[nodiscard]] bool pingOnStartUp() const noexcept;
     /// @}
 
     /// @name Destructors

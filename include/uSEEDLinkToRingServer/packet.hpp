@@ -15,8 +15,8 @@ namespace USEEDLinkToRingServer
  struct DataLinkPacket
  {
      std::string data;
-     int64_t startTime{0};
-     int64_t endTime{0};
+     std::chrono::microseconds startTime{0};
+     std::chrono::microseconds endTime{0};
  };
 }
 namespace USEEDLinkToRingServer

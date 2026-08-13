@@ -391,31 +391,32 @@ public:
             SPDLOG_LOGGER_WARN(mLogger, "Failed to set reconnect delay");
         }
         // Check this worked
-#ifndef NDEBUG
-        std::string slSite(512, '\0');
-        std::string slServerID(512, '\0');
-        auto returnCode = sl_ping(mSEEDLinkConnection,
-                                  slServerID.data(),
-                                  slSite.data());
-        if (returnCode != 0)
+        if (options.pingOnStartUp())
         {
-            if (returnCode ==-1)
+            std::string slSite(512, '\0');
+            std::string slServerID(512, '\0');
+            auto returnCode = sl_ping(mSEEDLinkConnection,
+                                      slServerID.data(),
+                                      slSite.data());
+            if (returnCode != 0)
             {
-                SPDLOG_LOGGER_WARN(mLogger, "Invalid ping response");
+                if (returnCode ==-1)
+                {
+                    SPDLOG_LOGGER_WARN(mLogger, "Invalid ping response");
+                }
+                else
+                {
+                    SPDLOG_LOGGER_ERROR(mLogger, "Could not connect to server");
+                    throw std::runtime_error("Failed to connect");
+                }
             }
             else
             {
-                SPDLOG_LOGGER_ERROR(mLogger, "Could not connect to server");
-                throw std::runtime_error("Failed to connect");
+                SPDLOG_LOGGER_INFO(mLogger,
+                   "SEEDLink ping successfully returned server {} (site {})",
+                   slServerID, slSite);
             }
         }
-        else
-        {
-            SPDLOG_LOGGER_INFO(mLogger,
-               "SEEDLink ping successfully returned server {} (site {})",
-               slServerID, slSite);
-        }
-#endif
         // All-good
         mOptions = options;
         mInitialized = true;

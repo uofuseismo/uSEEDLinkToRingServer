@@ -269,8 +269,9 @@ public:
                         SPDLOG_LOGGER_WARN(mLogger, "Skipping empty packet");
                         continue;
                     }
-                    dltime_t startTime = dataLinkPacket.startTime;
-                    dltime_t endTime = dataLinkPacket.endTime;
+                    // N.B. These are microseconds
+                    dltime_t startTime = dataLinkPacket.startTime.count();
+                    dltime_t endTime = dataLinkPacket.endTime.count();
                     constexpr int writeAcknowledgement{0};
                     auto returnCode
                         = dl_write(mDataLinkClient,

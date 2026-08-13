@@ -15,6 +15,7 @@ public:
     std::chrono::seconds mNetworkDelay{30};
     bool mDeleteStateFileOnStop{false};
     bool mDeleteStateFileOnStart{false};
+    bool mPingOnStartUp{true};
     uint16_t mStateFileInterval{100};
     uint16_t mPort{18000};
 };
@@ -196,6 +197,22 @@ std::chrono::seconds
     SEEDLinkClientOptions::getNetworkReconnectDelay() const noexcept
 {
     return pImpl->mNetworkDelay;
+}
+
+/// Ping on startup
+void SEEDLinkClientOptions::enablePingOnStartUp() noexcept
+{
+    pImpl->mPingOnStartUp = true;
+}
+
+void SEEDLinkClientOptions::disablePingOnStartUp() noexcept
+{
+    pImpl->mPingOnStartUp = false;
+}
+
+bool SEEDLinkClientOptions::pingOnStartUp() const noexcept
+{
+    return pImpl->mPingOnStartUp;
 }
 
 /// Stream selectors
